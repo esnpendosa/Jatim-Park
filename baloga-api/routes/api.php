@@ -16,6 +16,7 @@ Route::middleware(['throttle:5,1'])->group(function () {
 });
 
 // Public Endpoints
+Route::get('/app-config', [\App\Http\Controllers\Api\AppConfigController::class, 'getConfig']);
 Route::get('/game-locations', [LocationController::class, 'getGameLocations']);
 Route::get('/leaderboard', [LeaderboardController::class, 'getLeaderboard']);
 

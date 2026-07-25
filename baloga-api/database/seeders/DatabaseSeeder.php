@@ -266,5 +266,24 @@ class DatabaseSeeder extends Seeder
                 'quantity' => 20,
             ]);
         }
+        // 7. Seed Admin User
+        User::create([
+            'name' => 'Admin Baloga',
+            'email' => 'admin@baloga.com',
+            'password' => Hash::make('admin123'),
+            'avatar_url' => 'https://api.dicebear.com/7.x/bottts/svg?seed=Admin',
+            'level' => 99,
+            'xp' => 9999,
+            'points' => 99999,
+            'species_found' => 8,
+            'badges_count' => 3,
+            'is_admin' => true,
+        ]);
+
+        // 8. Seed Default App Settings
+        \App\Models\AppSetting::set('app_name', 'Baloga AR Rescue');
+        \App\Models\AppSetting::set('app_tagline', 'Penjaga Ekosistem Baloga');
+        \App\Models\AppSetting::set('app_logo_url', 'https://api.dicebear.com/7.x/bottts/svg?seed=BalogaLogo');
+        \App\Models\AppSetting::set('api_domain', 'https://balago.rozitech.co.id');
     }
 }

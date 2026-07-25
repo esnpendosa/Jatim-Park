@@ -21,6 +21,7 @@ class User extends Authenticatable
         'points',
         'species_found',
         'badges_count',
+        'is_admin',
     ];
 
     protected $hidden = [
@@ -38,6 +39,7 @@ class User extends Authenticatable
             'points' => 'integer',
             'species_found' => 'integer',
             'badges_count' => 'integer',
+            'is_admin' => 'boolean',
         ];
     }
 

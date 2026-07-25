@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
 import 'package:baloga_ar_rescue/presentation/providers/location_provider.dart';
+import 'package:baloga_ar_rescue/presentation/providers/app_config_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -38,6 +40,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final appConfig = ref.watch(appConfigProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       body: SafeArea(
@@ -46,10 +50,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Logo
+              // Dynamic Logo
               Center(
                 child: Container(
-                  padding: const EdgeInsets.all(20),
+                  width: 90,
+                  height: 90,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.bgCard,
@@ -57,16 +62,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       BoxShadow(color: AppColors.primaryGlow.withOpacity(0.25), blurRadius: 30, spreadRadius: 5),
                     ],
                   ),
-                  child: const Icon(Icons.eco_rounded, size: 52, color: AppColors.primaryGlow),
+                  child: ClipOval(
+                    child: appConfig.appLogoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: appConfig.appLogoUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (c, u) => const Icon(Icons.eco_rounded, size: 48, color: AppColors.primaryGlow),
+                            errorWidget: (c, u, e) => const Icon(Icons.eco_rounded, size: 48, color: AppColors.primaryGlow),
+                          )
+                        : const Icon(Icons.eco_rounded, size: 48, color: AppColors.primaryGlow),
+                  ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               Center(
                 child: Column(
                   children: [
-                    const Text(
-                      'BALOGA AR RESCUE',
-                      style: TextStyle(
+                    Text(
+                      appConfig.appName.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
                         fontFamily: 'Outfit',
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -76,13 +91,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Masuk sebagai Ranger Ekosistem',
+                      appConfig.appTagline,
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textMuted),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 36),
 
               // Error banner
               if (authState.error != null)
@@ -216,4 +232,3 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
-

@@ -23,6 +23,7 @@ return new class extends Migration
             $table->integer('points')->default(0);
             $table->integer('species_found')->default(0);
             $table->integer('badges_count')->default(0);
+            $table->boolean('is_admin')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });

@@ -1,8 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
 import 'package:baloga_ar_rescue/presentation/providers/location_provider.dart';
+import 'package:baloga_ar_rescue/presentation/providers/app_config_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -31,6 +33,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _initApp() async {
+    await ref.read(appConfigProvider.notifier).fetchConfig();
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
     final loggedIn = await ref.read(authProvider.notifier).loadUser();
@@ -51,6 +54,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final appConfig = ref.watch(appConfigProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       body: Center(
@@ -61,6 +66,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Dynamic Logo
                 Container(
                   width: 130,
                   height: 130,
@@ -81,12 +87,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.eco_rounded, size: 80, color: AppColors.primaryGlow),
+                  child: ClipOval(
+                    child: appConfig.appLogoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: appConfig.appLogoUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (c, u) => const Icon(Icons.eco_rounded, size: 80, color: AppColors.primaryGlow),
+                            errorWidget: (c, u, e) => const Icon(Icons.eco_rounded, size: 80, color: AppColors.primaryGlow),
+                          )
+                        : const Icon(Icons.eco_rounded, size: 80, color: AppColors.primaryGlow),
+                  ),
                 ),
                 const SizedBox(height: 28),
-                const Text(
-                  'BALOGA AR RESCUE',
-                  style: TextStyle(
+                // Dynamic App Name
+                Text(
+                  appConfig.appName.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
@@ -95,9 +112,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Penjaga Ekosistem Nusantara',
-                  style: TextStyle(
+                // Dynamic App Tagline
+                Text(
+                  appConfig.appTagline,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 14,
                     color: AppColors.textSecondary,
@@ -121,4 +140,3 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
   }
 }
-
