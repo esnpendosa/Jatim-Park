@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
 import 'package:baloga_ar_rescue/presentation/providers/location_provider.dart';
 import 'package:baloga_ar_rescue/presentation/providers/app_config_provider.dart';
+import 'package:baloga_ar_rescue/core/network/api_client.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -37,6 +38,87 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _showServerSettingsDialog() {
+    final urlCtrl = TextEditingController(text: ApiClient.currentUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.dns_rounded, color: AppColors.primaryGlow),
+            SizedBox(width: 8),
+            Text('Pengaturan Server API', style: TextStyle(fontFamily: 'Outfit', color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pilih atau ketik URL Server API (HTTP / HTTPS):', style: TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlCtrl,
+              style: const TextStyle(fontFamily: 'Outfit', color: AppColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'https://balago.rozitech.co.id/api',
+                hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.5)),
+                filled: true,
+                fillColor: AppColors.bgDark,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Pilihan Cepat:', style: TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _buildQuickChip('HTTPS Live', 'https://balago.rozitech.co.id/api', urlCtrl),
+                _buildQuickChip('HTTP Live', 'http://balago.rozitech.co.id/api', urlCtrl),
+                _buildQuickChip('Emulator', 'http://10.0.2.2:8000/api', urlCtrl),
+                _buildQuickChip('Local PC', 'http://127.0.0.1:8000/api', urlCtrl),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('BATAL', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await ApiClient.updateBaseUrl(urlCtrl.text);
+              await ref.read(appConfigProvider.notifier).fetchConfig();
+              if (mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Server API diubah ke: ${ApiClient.currentUrl}'),
+                    backgroundColor: AppColors.primaryLight,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryLight),
+            child: const Text('SIMPAN', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickChip(String label, String url, TextEditingController ctrl) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 10, fontFamily: 'Outfit', color: AppColors.textPrimary)),
+      backgroundColor: AppColors.bgDark,
+      onPressed: () => ctrl.text = url,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -46,10 +128,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       backgroundColor: AppColors.bgDark,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Server URL Config Button Header
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  onPressed: _showServerSettingsDialog,
+                  icon: const Icon(Icons.settings_input_component_rounded, color: AppColors.primaryGlow, size: 22),
+                  tooltip: 'Pengaturan Server API',
+                ),
+              ),
+
               // Dynamic Logo
               Center(
                 child: Container(
@@ -74,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Center(
                 child: Column(
                   children: [
@@ -98,7 +190,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 28),
+
+              // Active Server Indicator Badge
+              GestureDetector(
+                onTap: _showServerSettingsDialog,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primaryGlow.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wifi_rounded, size: 14, color: AppColors.primaryGlow),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Server: ${ApiClient.currentUrl}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ),
+                      const Text('UBAH', style: TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.primaryGlow, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Error banner
               if (authState.error != null)
@@ -146,7 +268,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       validator: (v) => (v == null || v.length < 8) ? 'Min 8 karakter' : null,
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
