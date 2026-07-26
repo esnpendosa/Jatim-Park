@@ -1,4 +1,5 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baloga_ar_rescue/data/models/user_model.dart';
 import 'package:baloga_ar_rescue/data/services/auth_service.dart';
 
@@ -38,7 +39,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Email atau password salah');
+      String errorMessage = 'Email atau password salah';
+      if (e is DioException) {
+        if (e.response?.data != null && e.response?.data is Map) {
+          final resData = e.response!.data as Map;
+          if (resData['message'] != null) {
+            errorMessage = resData['message'].toString();
+          } else if (resData['errors'] != null && resData['errors'] is Map) {
+            final errors = resData['errors'] as Map;
+            errorMessage = errors.values.first.first.toString();
+          }
+        } else if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) {
+          errorMessage = 'Tidak dapat terhubung ke server API. Periksa koneksi internet.';
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
@@ -51,7 +66,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Registrasi gagal. Coba lagi.');
+      String errorMessage = 'Registrasi gagal. Periksa data kembali.';
+      if (e is DioException) {
+        if (e.response?.data != null && e.response?.data is Map) {
+          final resData = e.response!.data as Map;
+          if (resData['errors'] != null && resData['errors'] is Map) {
+            final errors = resData['errors'] as Map;
+            errorMessage = errors.values.first[0].toString();
+          } else if (resData['message'] != null) {
+            errorMessage = resData['message'].toString();
+          }
+        } else if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) {
+          errorMessage = 'Tidak dapat terhubung ke server API. Periksa koneksi internet.';
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
@@ -65,4 +94,3 @@ class AuthNotifier extends StateNotifier<AuthState> {
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
   (ref) => AuthNotifier(ref.watch(authServiceProvider)),
 );
-

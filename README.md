@@ -14,7 +14,68 @@
 
 - **API Base URL**: `https://balago.rozitech.co.id/api`
 - **Supported Protocols**: Dual Support HTTP (`http://`) & HTTPS (`https://`)
-- **Android App Package**: `com.baloga.baloga_ar_rescue`
+- **Admin Panel URL**: `https://balago.rozitech.co.id/admin/login` (atau `http://127.0.0.1:8000/admin/login`)
+  - **Email Admin**: `admin@baloga.com`
+  - **Password**: `admin123`
+
+---
+
+## 📲 CARA BUILD APK ANDROID (RELEASE & DEBUG)
+
+Berikut adalah panduan lengkap cara melakukan *build* file APK Android untuk aplikasi **Baloga AR Rescue**:
+
+### 📋 Prasyarat (Prerequisites)
+1. **Flutter SDK**: Versi `^3.12.0` / Flutter 3.44+ sudah ter-install dan terhubung ke Environment Variables (`PATH`).
+2. **Android SDK / Android Studio**: Android SDK Build-Tools & Java JDK (JDK 17+ disarankan).
+
+---
+
+### 🚀 LANGKAH-LANGKAH BUILD APK RELEASE
+
+#### Langkah 1: Masuk ke Direktori Project Flutter
+Buka terminal / Command Prompt (PowerShell) dan masuk ke direktori aplikasi Flutter:
+```bash
+cd "c:\laragon\www\Jatim Park\baloga_ar_rescue"
+```
+
+#### Langkah 2: Download & Update Dependencies
+Pastikan seluruh package dependensi Flutter terunduh dengan sempurna:
+```bash
+flutter pub get
+```
+
+#### Langkah 3: Konfigurasi Environment API Target
+Buka file `c:\laragon\www\Jatim Park\baloga_ar_rescue\.env` dan pastikan URL API sudah sesuai:
+```env
+API_BASE_URL=https://balago.rozitech.co.id/api
+```
+*(Catatan: `ApiClient` sudah memiliki fitur **Automatic Dual Fallback**. Jika domain production unreachable saat testing lokal, aplikasi akan otomatis menggunakan fallback `http://10.0.2.2:8000/api` di emulator atau `http://127.0.0.1:8000/api` di desktop/web).*
+
+#### Langkah 4: Jalankan Perintah Build APK Release
+Eksekusi perintah berikut untuk memicu kompilasi Gradle ke bentuk APK Production:
+
+```bash
+flutter build apk --release
+```
+
+Jika Anda ingin menghasilkan APK berukuran lebih kecil per arsitektur prosesor (ARM64 / ARMv7), gunakan perintah:
+```bash
+flutter build apk --split-per-abi
+```
+
+#### 📍 Lokasi Hasil Output File APK:
+Setelah proses kompilasi selesai (`Built build\app\outputs\flutter-apk\app-release.apk`), file APK siap diambil di lokasi:
+```text
+baloga_ar_rescue/build/app/outputs/flutter-apk/app-release.apk
+```
+
+---
+
+### 🛠️ CARA INSTALASI APK KE HANDPHONE ANDROID
+1. Transfer file `app-release.apk` ke HP Android via kabel USB / Google Drive / WhatsApp.
+2. Buka File Manager di HP Android dan klik file `app-release.apk`.
+3. Jika muncul peringatan *"Install dari Sumber Tidak Dikenal"* (*Unknown Sources*), izinkan (Allow).
+4. Selesai! Aplikasi **Baloga AR Rescue** siap digunakan.
 
 ---
 
@@ -22,161 +83,44 @@
 
 ### 📱 Frontend Flutter App (`baloga_ar_rescue`)
 1. **Splash & Auto Auth Check**: Animasi pembuka dan pengecekan token JWT/Sanctum otomatis.
-2. **Autentikasi Ranger**: Login & Register akun baru dengan enkripsi token via `flutter_secure_storage`.
+2. **Autentikasi Ranger (Login & Register)**:
+   - Login & Register dengan enkripsi token Sanctum via `flutter_secure_storage`.
+   - **Tampilan Pesan Error Real-Time**: Menampilkan pesan kesalahan spesifik dari server (contoh: email sudah terdaftar, password min 8 karakter).
 3. **Peta Interaktif Real-Time (`MapScreen`)**:
    - Peta OpenStreetMap interaktif menggunakan `flutter_map` & `latlong2`.
    - Marker posisi user bergerak secara real-time berdasarkan GPS.
-   - Monster spawn point muncul di peta dengan highlight warna sesuai *rarity*.
+   - Marker monster spawn point muncul di peta dengan highlight warna sesuai *rarity*.
    - Filter radius otomatis: Marker monster menjadi *tappable* (dapat diselamatkan) hanya jika jarak user `< 10 meter`.
-   - Validasi Geofencing: Peringatan visual jika user berada di luar radius area resmi Baloga (1000m).
 4. **2D Capture Scene (`CaptureScreen`)**:
    - Game Loop 2D performa tinggi menggunakan **Flame Engine**.
    - Animasi *idle bobbing* monster spesies.
    - Kontrol gesture *drag & swipe* Eko-Sphere (bola penangkap).
    - Deteksi *collision trajectory* antara Eko-Sphere dan bounding box monster.
    - Kalkulasi probabilitas penangkapan & validasi server-side.
-   - Display kartu hasil penyelamatan, perolehan XP (+50 sd +500), poin, dan penanda *Spesies Baru*.
 5. **Ensiklopedia Spesies (`EncyclopediaScreen`)**:
    - Grid card seluruh spesies hewan & tumbuhan Baloga.
    - Tab filter: *Semua*, *Hewan*, *Tumbuhan*.
-   - Badge warna per rarity (*Common*, *Rare*, *Epic*, *Legendary*).
-   - Modal detail spesies: foto, nama latin, habitat, makanan, peran ekologi, status konservasi IUCN (warna merah untuk Kritis), dan fakta unik.
-6. **Sistem Misi (`MissionsScreen`)**:
-   - Tab *Misi Harian* & *Misi Mingguan*.
-   - Progress bar pencapaian misi.
-   - Tombol klaim reward aktif saat progress 100%.
-7. **Profil Ranger (`ProfileScreen`)**:
-   - Avatar & Level Ranger.
-   - Progress bar XP ke level berikutnya (`user.level * 200 XP`).
-   - Statistik perolehan spesies, total poin, dan badge.
-   - Grid badge pencapaian (*Penyelamat Muda*, *Pelindung Satwa*, *Botanis Baloga*).
-8. **Inventori Ranger (`InventoryScreen`)**:
-   - **Tab Item**: Stok Eko-Sphere Standard, Eko-Sphere Great, Eco Scanner, Nature Radar, Lucky Leaf.
-   - **Tab Koleksi**: Hasil tangkapan spesies beserta jumlah (*quantity*).
+   - Modal detail spesies: foto, nama latin, habitat, makanan, peran ekologi, status konservasi IUCN.
+6. **Dynamic Branding & App Configuration**:
+   - Logo, Nama Aplikasi, dan Tagline dirender secara dinamis berdasarkan setting dari Admin Panel.
 
 ---
 
-### ⚙️ Backend Laravel REST API (`baloga-api`)
-1. **Multi-layer Security**:
-   - Middleware `auth:sanctum` untuk semua protected endpoint.
-   - Laravel Form Request Validation untuk sanitasi semua input JSON.
-   - Rate limiting throttle: 5 req/menit untuk Login/Register, 60 req/menit untuk API umum.
-   - Server-side **Haversine Distance Re-validation** pada endpoint capture untuk mencegah manipulasi GPS / Fake GPS Spoofing (batas toleransi 50 meter).
-   - Anti-cheat telemetry logging untuk percobaan capture berjarak tidak wajar.
-2. **CORS Policy & HTTPS**:
-   - Konfigurasi `config/cors.php` mendukung cross-origin resmi.
-   - `AppServiceProvider` menangani SSL reverse proxy (`X-Forwarded-Proto`).
-3. **Database Architecture**:
-   - 12 Tabel terstruktur dengan relasi Eloquent FK cascades.
+### ⚙️ Backend Laravel REST API (`baloga-api`) & Admin Panel
+1. **Dynamic Admin Panel (`/admin`)**:
+   - **Branding & Settings Management**: Kelola Nama Aplikasi, Slogan, dan Upload Logo Gambar secara dinamis.
+   - **Master Spesies**: CRUD Spesies Hewan & Tumbuhan + Upload Thumbnail Gambar & Model 3D.
+   - **Game Locations & Spawn Points**: Kelola area Baloga & titik koordinat kemunculan monster.
+   - **Item & Misi**: Kelola Eko-Sphere, Radar, Scanner, & Misi Harian/Mingguan.
+   - **User & Log Capture**: Monitoring akun Ranger & aktivitas penyelamatan.
+2. **Multi-layer Security**:
+   - Authentication via `Laravel Sanctum` (`personal_access_tokens`).
+   - Server-side **Haversine Distance Re-validation** pada endpoint capture untuk mencegah manipulasi GPS (batas toleransi 50 meter).
+   - Rate limiting: 5 req/menit untuk Login/Register.
 
 ---
 
-## 🛠️ Stack Teknologi
-
-| Komponen | Teknologi / Package | Detail |
-| :--- | :--- | :--- |
-| **Backend Framework** | Laravel 13 | PHP 8.3+ |
-| **Database** | MySQL / MariaDB | UTF8MB4 Unicode |
-| **Auth & Security** | Laravel Sanctum & Fortify | Bearer Token Auth |
-| **Frontend Framework** | Flutter 3.44.0 | Dart 3.12.0 |
-| **State Management** | Flutter Riverpod 2.6 | Reactive State Notifiers |
-| **Game Engine 2D** | Flame Engine 1.22 | Canvas gesture & collision |
-| **Maps & Location** | Flutter Map + Geolocator | OpenStreetMap & GPS tracking |
-| **HTTP Client** | Dio 5.7 + Flutter Secure Storage | Automatic Token Interceptor |
-| **Navigation** | GoRouter 14 | Declarative Shell Routing |
-
----
-
-## 🗄️ Skema Database (12 Tabel)
-
-```
-users
- ├── id (PK)
- ├── name, email (unique), password (hashed), avatar_url
- └── level, xp, points, species_found, badges_count
-
-species (Master Monster/Hewan/Tumbuhan)
- ├── id (PK)
- ├── name, latin_name, category (enum: hewan/tumbuhan)
- ├── rarity (enum: common/rare/epic/legendary)
- ├── habitat, food, ecological_role, conservation_status, fun_fact
- └── model_3d_url, thumbnail_url, base_cp
-
-game_locations (Radius Area Resmi)
- └── id (PK), name, latitude, longitude, radius_meters
-
-spawn_points (Titik Kemunculan Monster)
- └── id (PK), species_id (FK), latitude, longitude, active, respawn_minutes
-
-captures (History Log Penangkapan)
- └── id (PK), user_id (FK), species_id (FK), captured_at, latitude, longitude, cp_result
-
-inventories (Koleksi Spesies User)
- └── id (PK), user_id (FK), species_id (FK), quantity, first_captured_at
-
-items (Master Data Item/Bola)
- └── id (PK), name, description, icon_url, type (enum: capture_ball/scanner/radar/booster)
-
-user_items (Stok Item User)
- └── id (PK), user_id (FK), item_id (FK), quantity
-
-missions (Master Data Misi)
- └── id (PK), title, description, type (enum: daily/weekly), target_count, xp_reward, icon_url
-
-user_missions (Progress Misi User)
- └── id (PK), user_id (FK), mission_id (FK), current_progress, is_completed, reset_at
-
-badges (Master Data Badge)
- └── id (PK), name, description, icon_url, requirement_type, requirement_value
-
-user_badges (Badge Milik User)
- └── id (PK), user_id (FK), badge_id (FK), earned_at
-```
-
----
-
-## 🔌 Dokumentasi REST API Endpoints
-
-### Auth Endpoints
-| Method | Endpoint | Auth Required | Rate Limit | Deskripsi |
-| :--- | :--- | :---: | :---: | :--- |
-| `POST` | `/api/register` | ❌ | 5 req/min | Registrasi akun Ranger baru + starter 10 Eko-Sphere |
-| `POST` | `/api/login` | ❌ | 5 req/min | Login & dapatkan token Sanctum |
-| `POST` | `/api/logout` | 🔐 Sanctum | 60 req/min | Hapus token session |
-| `GET` | `/api/me` | 🔐 Sanctum | 60 req/min | Dapatkan profil & statistik user |
-
-### Location & Map Endpoints
-| Method | Endpoint | Auth Required | Deskripsi |
-| :--- | :--- | :---: | :--- |
-| `GET` | `/api/game-locations` | ❌ Public | Daftar koordinat & radius resmi area Baloga |
-| `GET` | `/api/spawn-points/nearby` | 🔐 Sanctum | Fetch monster terdekat (`?lat=..&lng=..&radius=..`) |
-
-### Capture Flow Endpoint
-| Method | Endpoint | Auth Required | Payload Body |
-| :--- | :--- | :---: | :--- |
-| `POST` | `/api/captures/attempt` | 🔐 Sanctum | `{"spawn_point_id": 1, "lat": -7.892, "lng": 112.548, "item_id": 1}` |
-
-> **Logika Backend `POST /api/captures/attempt`**:
-> 1. Validasi keberadaan & status aktif `spawn_point_id`.
-> 2. Re-kalkulasi jarak Haversine koordinat user ke spawn point (Server-Side). Jika `> 50 meter`, ditolak dengan error 400.
-> 3. Cek stok item `item_id` milik user. Kurangi `quantity - 1`.
-> 4. Hitung probabilitas sukses berdasarkan `rarity` spesies (*Common*: 85%, *Rare*: 65%, *Epic*: 45%, *Legendary*: 25%) + bonus item Eko-Sphere Great.
-> 5. Jika sukses: simpan ke `captures` + `inventories`, tambahkan XP & Poin user, update `species_found`.
-
-### Species, Inventory & Missions Endpoints
-| Method | Endpoint | Auth Required | Deskripsi |
-| :--- | :--- | :---: | :--- |
-| `GET` | `/api/species` | 🔐 Sanctum | Daftar spesies (`?category=hewan|tumbuhan`) |
-| `GET` | `/api/species/{id}` | 🔐 Sanctum | Detail spesies & status *is_discovered* |
-| `GET` | `/api/inventory` | 🔐 Sanctum | Daftar spesies yang telah ditangkap user |
-| `GET` | `/api/items` | 🔐 Sanctum | Daftar item & stok milik user |
-| `GET` | `/api/missions` | 🔐 Sanctum | Daftar misi harian/mingguan & progress user |
-| `POST` | `/api/missions/{id}/claim` | 🔐 Sanctum | Klaim XP reward untuk misi yang telah 100% |
-| `GET` | `/api/leaderboard` | ❌ Public | Top 20 Ranger berdasarkan poin (Cache 5 menit) |
-
----
-
-## 💻 Panduan Inisialisasi & Installasi Project
+## 💻 Panduan Setup & Installasi Local
 
 ### 1. Setup Backend Laravel (`baloga-api`)
 
@@ -189,18 +133,11 @@ composer install
 # Environment File Setup
 cp .env.example .env
 
-# Generate Application Key
+# Generate Application Key & Storage Link
 php artisan key:generate
+php artisan storage:link
 
-# Database Setup di .env (Laragon MySQL)
-# DB_CONNECTION=mysql
-# DB_HOST=127.0.0.1
-# DB_PORT=3306
-# DB_DATABASE=baloga_db
-# DB_USERNAME=root
-# DB_PASSWORD=
-
-# Run Database Migrations & Seeders
+# Database Migration & Seeder (Sudah termasuk Sanctum & App Settings)
 php artisan migrate:fresh --seed
 
 # Run Development Server
@@ -215,50 +152,9 @@ cd baloga_ar_rescue
 # Install Flutter Dependencies
 flutter pub get
 
-# Setup File .env (sudah dikonfigurasi ke domain production)
-# API_BASE_URL=https://balago.rozitech.co.id/api
-
-# Run App (Chrome / Emulator / Device)
+# Run Development (Chrome / Emulator / Mobile)
 flutter run
-
-# Build APK Release Android
-flutter build apk --release
-
-# Build Production Web Release
-flutter build web --release
 ```
-
----
-
-## 🎨 Asset Generation Prompts (Phase 7 Guide)
-
-Gunakan prompt berikut di tool AI Image Generator (Midjourney / Leonardo.ai) untuk membuat ilustrasi spesies Baloga tambahan:
-
-**Style Guide Suffix:**
-```text
---style semi-realistic mobile game illustration, vibrant colors, soft rim lighting, clean background, centered composition, mascot-friendly, high detail fur/texture, similar to Pokemon GO creature card art
-```
-
-**Contoh Prompt Spesies (Harimau Sumatra):**
-```text
-A majestic Sumatran tiger (Panthera tigris sumatrae) standing confidently on grass, full body, epic rarity glow aura in blue-green, game creature illustration style, detailed fur texture, soft studio lighting, transparent-friendly background --style semi-realistic mobile game illustration, vibrant colors, soft rim lighting, clean background, centered composition, mascot-friendly, high detail fur/texture, similar to Pokemon GO creature card art
-```
-
-**Contoh Prompt Icon Item (Eko-Sphere):**
-```text
-A glowing spherical capture device icon, blue-green glass orb with glowing core, game UI icon style, isolated on transparent background, soft glow, flat perspective
-```
-
----
-
-## 🛡️ Checklist Security & Release Play Store (Phase 6)
-
-- [x] **Obfuscation Build**: `flutter build appbundle --obfuscate --split-debug-info=build/debug-info`
-- [x] **Secure Token Storage**: Menggunakan `flutter_secure_storage` untuk menyimpan JWT Bearer token.
-- [x] **Network Security**: Mendukung HTTPS & Cleartext Traffic secara selektif di `AndroidManifest.xml`.
-- [x] **Server Anti-Cheat**: Validasi ulang Haversine GPS distance di backend Laravel.
-- [x] **Rate Limiting**: Throttling 5 req/min di Auth & 60 req/min di API.
-- [x] **CORS Policy**: Restriksi header & origin terdaftar di `config/cors.php`.
 
 ---
 

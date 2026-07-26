@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -7,7 +9,13 @@ class ApiClient {
   static final _storage = const FlutterSecureStorage();
 
   static const String primaryUrl = 'https://balago.rozitech.co.id/api';
-  static const String fallbackUrl = 'http://127.0.0.1:8000/api';
+
+  static String get fallbackUrl {
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.0.2.2:8000/api';
+    }
+    return 'http://127.0.0.1:8000/api';
+  }
 
   static Dio get instance => _dio;
 
@@ -33,15 +41,15 @@ class ApiClient {
         return handler.next(options);
       },
       onError: (DioException e, handler) async {
-        // Automatic Server Fallback handling
+        // Fallback retry if primary server is unreachable
         if (_isNetworkOrServerError(e)) {
           final currentBase = _dio.options.baseUrl;
-          final newBase = (currentBase == primaryUrl) ? fallbackUrl : primaryUrl;
+          final targetFallback = fallbackUrl;
 
-          if (currentBase != newBase) {
-            _dio.options.baseUrl = newBase;
+          if (currentBase != targetFallback) {
+            _dio.options.baseUrl = targetFallback;
             final reqOptions = e.requestOptions;
-            reqOptions.path = reqOptions.path.replaceFirst(currentBase, newBase);
+            reqOptions.path = reqOptions.path.replaceFirst(currentBase, targetFallback);
 
             try {
               final response = await _dio.fetch(reqOptions);
