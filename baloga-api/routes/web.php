@@ -9,9 +9,18 @@ use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
 
+// Default web redirects to Admin Login
 Route::get('/', function () {
     return redirect()->route('admin.login');
 });
+
+Route::get('/login', function () {
+    return redirect()->route('admin.login');
+})->name('login');
+
+Route::get('/register', function () {
+    return redirect()->route('admin.login');
+})->name('register');
 
 // Admin Auth Routes
 Route::prefix('admin')->group(function () {
