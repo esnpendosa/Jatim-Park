@@ -283,7 +283,7 @@ class DatabaseSeeder extends Seeder
         // 8. Seed Default App Settings
         \App\Models\AppSetting::set('app_name', 'Baloga AR Rescue');
         \App\Models\AppSetting::set('app_tagline', 'Penjaga Ekosistem Baloga');
-        \App\Models\AppSetting::set('app_logo_url', 'https://api.dicebear.com/7.x/bottts/svg?seed=BalogaLogo');
+        \App\Models\AppSetting::set('app_logo_url', asset('storage/app/logo/rmi_logo.png'));
         \App\Models\AppSetting::set('api_domain', 'https://balago.rozitech.co.id');
     }
 }

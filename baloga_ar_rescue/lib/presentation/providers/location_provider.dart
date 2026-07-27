@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -71,15 +71,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
   }
 
   bool _checkInArea(Position pos) {
-    if (_gameLocations.isEmpty) return true; // Dev mode: allow all
-    for (final loc in _gameLocations) {
-      final lat = (loc['latitude'] as num).toDouble();
-      final lng = (loc['longitude'] as num).toDouble();
-      final radius = (loc['radius_meters'] as num).toDouble();
-      final dist = _haversineMeters(pos.latitude, pos.longitude, lat, lng);
-      if (dist <= radius) return true;
-    }
-    return false;
+    return true; // Unlimited Testing Mode: All locations permitted
   }
 
   double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {

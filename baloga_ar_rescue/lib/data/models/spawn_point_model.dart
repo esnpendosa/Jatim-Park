@@ -1,4 +1,4 @@
-﻿import 'package:baloga_ar_rescue/data/models/species_model.dart';
+import 'package:baloga_ar_rescue/data/models/species_model.dart';
 
 class SpawnPointModel {
   final int id;
@@ -19,7 +19,7 @@ class SpawnPointModel {
     required this.active,
     required this.respawnMinutes,
     this.distanceMeters,
-    this.isTappable,
+    this.isTappable = true,
     this.species,
   });
 
@@ -31,8 +31,7 @@ class SpawnPointModel {
         active: json['active'] ?? true,
         respawnMinutes: json['respawn_minutes'] ?? 15,
         distanceMeters: (json['distance_meters'] as num?)?.toDouble(),
-        isTappable: json['is_tappable'],
+        isTappable: json['is_tappable'] ?? true,
         species: json['species'] != null ? SpeciesModel.fromJson(json['species']) : null,
       );
 }
-

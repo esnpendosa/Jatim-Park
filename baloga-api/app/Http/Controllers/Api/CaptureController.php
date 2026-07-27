@@ -27,28 +27,13 @@ class CaptureController extends Controller
             ], 400);
         }
 
-        // Server-Side Re-validation of GPS distance using Haversine
+        // GPS distance calculation (radius check bypassed for unlimited testing mode)
         $distanceMeters = LocationController::haversineDistance(
             (float) $validated['lat'],
             (float) $validated['lng'],
             $spawnPoint->latitude,
             $spawnPoint->longitude
         ) * 1000.0;
-
-        // Anti-cheat limit: max 50 meters for GPS drift tolerance
-        if ($distanceMeters > 50.0) {
-            Log::warning('Anti-Cheat Triggered: GPS distance invalid', [
-                'user_id' => $user->id,
-                'user_coords' => [$validated['lat'], $validated['lng']],
-                'spawn_coords' => [$spawnPoint->latitude, $spawnPoint->longitude],
-                'distance_meters' => $distanceMeters,
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Posisi Anda terlalu jauh dari lokasi monster! Silakan mendekat.',
-            ], 400);
-        }
 
         // Check & Deduct item stock
         $userItem = UserItem::where('user_id', $user->id)

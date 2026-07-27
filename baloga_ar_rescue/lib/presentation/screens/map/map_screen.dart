@@ -1,10 +1,10 @@
-﻿import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:baloga_ar_rescue/presentation/providers/location_provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
+import 'package:baloga_ar_rescue/presentation/providers/location_provider.dart';
 import 'package:baloga_ar_rescue/data/models/spawn_point_model.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
@@ -17,60 +17,62 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final MapController _mapController = MapController();
-  bool _centered = false;
+  final LatLng _defaultBalogaPos = const LatLng(-7.892543, 112.548972);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initMap();
+      _initLocation();
     });
   }
 
-  void _initMap() {
-    final locState = ref.read(locationProvider);
-    if (locState.position != null) {
-      final lat = locState.position!.latitude;
-      final lng = locState.position!.longitude;
-      ref.read(spawnPointsProvider.notifier).startAutoRefresh(lat, lng);
+  void _initLocation() async {
+    await ref.read(locationProvider.notifier).init();
+    final pos = ref.read(locationProvider).position;
+    if (pos != null) {
+      _mapController.move(LatLng(pos.latitude, pos.longitude), 17);
+      ref.read(spawnPointsProvider.notifier).startAutoRefresh(pos.latitude, pos.longitude);
+    } else {
+      ref.read(spawnPointsProvider.notifier).startAutoRefresh(_defaultBalogaPos.latitude, _defaultBalogaPos.longitude);
     }
   }
 
-  @override
-  void dispose() {
-    ref.read(spawnPointsProvider.notifier).stopAutoRefresh();
-    super.dispose();
+  Color rarityColor(String rarity) {
+    switch (rarity) {
+      case 'legendary':
+        return AppColors.rarityLegendary;
+      case 'epic':
+        return AppColors.rarityEpic;
+      case 'rare':
+        return AppColors.rarityRare;
+      default:
+        return AppColors.rarityCommon;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final locState = ref.watch(locationProvider);
-    final spawnAsync = ref.watch(spawnPointsProvider);
+    final spawnPointsAsync = ref.watch(spawnPointsProvider);
     final authState = ref.watch(authProvider);
 
-    // Auto-center map on first fix
-    if (locState.position != null && !_centered) {
-      _centered = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
-          _mapController.move(LatLng(locState.position!.latitude, locState.position!.longitude), 17);
-          ref.read(spawnPointsProvider.notifier).startAutoRefresh(locState.position!.latitude, locState.position!.longitude);
-        } catch (_) {}
-      });
-    }
+    final userLatLng = locState.position != null
+        ? LatLng(locState.position!.latitude, locState.position!.longitude)
+        : _defaultBalogaPos;
 
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       body: Stack(
         children: [
-          // Flutter Map
+          // OpenStreetMap Tile Layer
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: locState.position != null
-                  ? LatLng(locState.position!.latitude, locState.position!.longitude)
-                  : const LatLng(-7.892543, 112.548972),
-              initialZoom: 17,
+              initialCenter: userLatLng,
+              initialZoom: 16.5,
+              maxZoom: 19.0,
+              minZoom: 12.0,
             ),
             children: [
               TileLayer(
@@ -78,45 +80,39 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 userAgentPackageName: 'com.baloga.baloga_ar_rescue',
               ),
 
-              // Spawn point markers
-              MarkerLayer(
-                markers: spawnAsync.when(
-                  data: (points) => points.map((sp) => _buildSpawnMarker(sp)).toList(),
-                  loading: () => [],
-                  error: (_, __) => [],
+              // Spawn Points Layer
+              spawnPointsAsync.when(
+                data: (points) => MarkerLayer(
+                  markers: points.map((sp) => _buildSpawnMarker(sp)).toList(),
                 ),
+                loading: () => const MarkerLayer(markers: []),
+                error: (_, __) => const MarkerLayer(markers: []),
               ),
 
-              // User position marker
+              // User Position Marker
               if (locState.position != null)
                 MarkerLayer(
                   markers: [
                     Marker(
-                      point: LatLng(locState.position!.latitude, locState.position!.longitude),
-                      width: 60,
-                      height: 60,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.accentBlue.withOpacity(0.15),
-                              border: Border.all(color: AppColors.accentBlue.withOpacity(0.4), width: 1.5),
+                      point: userLatLng,
+                      width: 48,
+                      height: 48,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primaryGlow.withValues(alpha: 0.25),
+                          border: Border.all(color: AppColors.primaryGlow, width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryGlow.withValues(alpha: 0.6),
+                              blurRadius: 16,
+                              spreadRadius: 4,
                             ),
-                          ),
-                          Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.accentBlue,
-                              boxShadow: [BoxShadow(color: AppColors.accentBlue.withOpacity(0.6), blurRadius: 8, spreadRadius: 2)],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.navigation, color: Colors.white, size: 22),
+                        ),
                       ),
                     ),
                   ],
@@ -124,19 +120,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ],
           ),
 
-          // Top bar
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
+          // Top Info Banner (Ranger & Status Mode Uji Coba)
+          SafeArea(
+            child: Positioned(
+              top: 12,
+              left: 16,
+              right: 16,
               child: Container(
-                margin: const EdgeInsets.all(12),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.bgCard.withOpacity(0.92),
+                  color: AppColors.bgCard.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primaryGlow.withOpacity(0.2)),
+                  border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [
@@ -154,27 +149,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           children: [
                             const Icon(Icons.star, color: AppColors.accentGold, size: 12),
                             const SizedBox(width: 2),
-                            Text('Lv.${authState.user?.level ?? 1}  •  ${authState.user?.points ?? 0} pts',
+                            Text('Lv.${authState.user?.level ?? 1}     ${authState.user?.points ?? 0} pts',
                                 style: const TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted, fontSize: 11)),
                           ],
                         ),
                       ],
                     ),
                     const Spacer(),
-                    // Area status badge
+                    // Area status badge (Bebas Radius Uji Coba)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: locState.isInArea ? AppColors.success.withOpacity(0.15) : AppColors.danger.withOpacity(0.15),
+                        color: AppColors.success.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: locState.isInArea ? AppColors.success.withOpacity(0.5) : AppColors.danger.withOpacity(0.5)),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(locState.isInArea ? Icons.location_on : Icons.location_off, color: locState.isInArea ? AppColors.success : AppColors.danger, size: 12),
-                          const SizedBox(width: 4),
-                          Text(locState.isInArea ? 'Di Area' : 'Luar Area', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w600, color: locState.isInArea ? AppColors.success : AppColors.danger)),
+                          Icon(Icons.check_circle_rounded, color: AppColors.success, size: 12),
+                          SizedBox(width: 4),
+                          Text('Mode Uji Coba', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success)),
                         ],
                       ),
                     ),
@@ -183,34 +178,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
           ),
-
-          // Out of area overlay
-          if (!locState.isInArea && locState.position != null)
-            Positioned(
-              bottom: 100,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard.withOpacity(0.95),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.5)),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Silakan datang ke Area Baloga untuk mulai menangkap spesies!',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
           // GPS loading indicator
           if (locState.isLoading)
@@ -234,9 +201,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(0.15),
+                  color: AppColors.danger.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.danger.withOpacity(0.5)),
+                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.5)),
                 ),
                 child: Row(
                   children: [
@@ -280,7 +247,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Marker _buildSpawnMarker(SpawnPointModel sp) {
-    final tappable = sp.isTappable ?? false;
+    // Unlimited Testing Mode: All spawn points are 100% tappable regardless of distance
+    const tappable = true;
     final rarity = sp.species?.rarity ?? 'common';
     final color = rarityColor(rarity);
 
@@ -289,30 +257,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       width: 56,
       height: 56,
       child: GestureDetector(
-        onTap: tappable
-            ? () {
-                context.go('/capture/${sp.id}', extra: {
-                  'species_name': sp.species?.name ?? 'Monster',
-                  'species_thumbnail': sp.species?.thumbnailUrl,
-                  'rarity': rarity,
-                  'item_id': 1,
-                });
-              }
-            : null,
+        onTap: () {
+          context.go('/capture/${sp.id}', extra: {
+            'species_name': sp.species?.name ?? 'Monster',
+            'species_thumbnail': sp.species?.thumbnailUrl,
+            'rarity': rarity,
+            'item_id': 1,
+          });
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: tappable ? color.withOpacity(0.2) : AppColors.bgCard.withOpacity(0.5),
-            border: Border.all(color: tappable ? color : color.withOpacity(0.3), width: tappable ? 2.5 : 1.5),
-            boxShadow: tappable
-                ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 12, spreadRadius: 2)]
-                : [],
+            color: color.withValues(alpha: 0.25),
+            border: Border.all(color: color, width: 2.5),
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 14, spreadRadius: 3)],
           ),
-          child: Icon(Icons.pets, color: tappable ? color : color.withOpacity(0.4), size: tappable ? 26 : 20),
+          child: Icon(Icons.pets, color: color, size: 26),
         ),
       ),
     );
   }
 }
-
