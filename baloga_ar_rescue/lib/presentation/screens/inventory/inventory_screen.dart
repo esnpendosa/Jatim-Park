@@ -153,38 +153,67 @@ class _ItemsTab extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                '• Setiap Menangkap 1 Spesies: Hadiah otomatis +3 Eko-Sphere & +5 Buah Berry!\n• Selesaikan Misi Harian: Dapatkan +10 Eko-Sphere & +10 Berry gratis.\n• Klaim Bekal Harian: Tekan tombol di bawah untuk isi ulang stok.',
+                '• Setiap Menangkap 1 Spesies: Hadiah otomatis +3 Eko-Sphere & +5 Buah Berry!\n• Selesaikan Misi Harian: Dapatkan +10 Eko-Sphere & +10 Berry gratis.\n• Klaim Bekal Harian: Tekan tombol di bawah (1x Per Hari).',
                 style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: AppColors.textMuted, height: 1.4),
               ),
               const SizedBox(height: 12),
 
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(inventoryProvider.notifier).addItems(spheres: 5, berries: 10, radars: 1);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        backgroundColor: AppColors.primaryGlow,
-                        content: Text(
-                          '🎁 BEKAL RANGER DIKLAIM! +5 Eko-Sphere & +10 Buah Berry ditambahkan!',
-                          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                child: invState.isDailyClaimed
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryGlow.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.5)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: AppColors.primaryGlow, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'BEKAL HARIAN SUDAH DIKLAIM (KLAIM LAGI BESOK)',
+                              style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primaryGlow),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: () {
+                          final success = ref.read(inventoryProvider.notifier).claimDailySupply();
+                          if (success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                backgroundColor: AppColors.primaryGlow,
+                                content: Text(
+                                  '🎁 BEKAL RANGER HARIAN DIKLAIM! +5 Eko-Sphere & +10 Buah Berry ditambahkan!',
+                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                backgroundColor: AppColors.danger,
+                                content: Text('Bekal harian sudah diklaim hari ini!'),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                        label: const Text(
+                          'KLAIM BEKAL RANGER HARIAN (+5 BOLA & +10 BERRY)',
+                          style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGlow,
+                          foregroundColor: AppColors.bgDark,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                  label: const Text(
-                    'KLAIM BEKAL RANGER GRATIS (+5 BOLA & +10 BERRY)',
-                    style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGlow,
-                    foregroundColor: AppColors.bgDark,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
               ),
             ],
           ),
@@ -274,7 +303,6 @@ class _StackedCollectionTab extends ConsumerWidget {
     final invState = ref.watch(inventoryProvider);
     final rawSpeciesList = invState.capturedSpecies;
 
-    // GROUP & STACK CAPTURED SPECIES BY SPECIES NAME/ID
     final Map<String, Map<String, dynamic>> groupedMap = {};
     for (var sp in rawSpeciesList) {
       final key = sp.name;
@@ -345,7 +373,6 @@ class _StackedCollectionTab extends ConsumerWidget {
                   children: [
                     buildImageWidget(sp.thumbnailUrl, color),
 
-                    // STACKED QUANTITY BADGE (x1, x2, x3, etc.)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -363,7 +390,6 @@ class _StackedCollectionTab extends ConsumerWidget {
                       ),
                     ),
 
-                    // RARITY TAG
                     Positioned(
                       top: 8,
                       right: 8,

@@ -33,7 +33,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
 
-  // Complete Rozitech Dataset List for Real-time Camera Auto-Object Selection
   final List<Map<String, dynamic>> _datasetList = [
     {
       'species_id': 2,
@@ -196,16 +195,18 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
   void _performScanValidation() {
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = 'MEMINDAI FITUR KAMERA AR & DETEKSI OTOMATIS OBJEK...';
+      _scanStatusMessage = 'ANALISIS FITUR VISUAL KAMERA REALTIME...';
     });
 
-    Timer(const Duration(milliseconds: 1200), () {
+    Timer(const Duration(milliseconds: 1400), () {
       if (!mounted) return;
-      _showAutoDetectSelectionModal();
+      _showScanStrictVerificationModal();
     });
   }
 
-  void _showAutoDetectSelectionModal() {
+  void _showScanStrictVerificationModal() {
+    final targetName = _activeSpeciesData['species_name'] ?? 'Target Spesies';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgCard,
@@ -219,57 +220,59 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
             Center(child: Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
 
-            const Row(
+            Row(
               children: [
-                Icon(Icons.center_focus_strong_rounded, color: AppColors.primaryGlow, size: 24),
-                SizedBox(width: 8),
-                Text(
-                  'DETEKSI OTOMATIS OBJEK KAMERA',
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                const Icon(Icons.center_focus_strong_rounded, color: AppColors.primaryGlow, size: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'VERIFIKASI HASIL SCAN KAMERA',
+                    style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Pilih objek yang tampak di layar kamera Anda saat ini:',
-              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+            const SizedBox(height: 6),
+            Text(
+              'Target yang dicari: $targetName. Apakah kamera di depan Anda benar-benar mengarah ke objek $targetName?',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-            // UNMATCHED / UNKNOWN OBJECT FAILED OPTION
+            // OPTION 1: MISMATCHED / WRONG OBJECT (LAPTOP, WALL, DESK, ETC.) -> IMMEDIATE FAILURE!
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() {
                   _isScanning = false;
                   _isTargetMatched = false;
-                  _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek kamera tidak cocok dengan dataset spesies!';
+                  _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek kamera (Laptop / Objek Lain) tidak cocok dengan $targetName!';
                 });
-                _showScanFailedErrorDialog('Objek Lain / Tidak Dikenali');
+                _showScanFailedErrorDialog(targetName);
               },
               child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: const Color(0xFF381010),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.danger, width: 1.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.danger, width: 2),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.cancel_rounded, color: AppColors.danger, size: 28),
-                    SizedBox(width: 12),
+                    const Icon(Icons.cancel_rounded, color: AppColors.danger, size: 28),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '❌ OBJEK LAIN / BUKAN DATASET (GAGAL)',
+                          const Text(
+                            '❌ GAGAL: Objek Berbeda (Laptop / Tembok / Objek Lain)',
                             style: TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.danger),
                           ),
                           Text(
-                            'Kamera mengarah ke objek di luar dataset (misal: lantai, tembok, dll.)',
-                            style: TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted),
+                            'Kamera sedang mengarah ke laptop/objek lain yang tidak sesuai dengan $targetName.',
+                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted),
                           ),
                         ],
                       ),
@@ -279,71 +282,57 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
               ),
             ),
 
-            Expanded(
-              child: ListView.builder(
-                itemCount: _datasetList.length,
-                itemBuilder: (c, i) {
-                  final ds = _datasetList[i];
-                  final name = ds['species_name'] as String;
-                  final latin = ds['species_latin'] as String;
-                  final thumb = ds['species_thumbnail'] as String;
+            // OPTION 2: EXACT TARGET MATCH -> SUCCESS!
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _isScanning = false;
+                  _isTargetMatched = true;
+                  _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek kamera cocok dengan $targetName. Tekan EKO-SPHERE untuk menangkap.';
+                });
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _activeSpeciesData = Map<String, dynamic>.from(ds);
-                        _isScanning = false;
-                        _isTargetMatched = true;
-                        _scanStatusMessage = 'PEMINDAIAN BERHASIL! Kamera terdeteksi sebagai $name. Tekan EKO-SPHERE untuk menangkap.';
-                      });
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AppColors.primaryGlow,
-                          content: Text(
-                            '🎯 DETEKSI OTOMATIS BERHASIL: Kamera cocok dengan $name!',
-                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppColors.primaryGlow,
+                    content: Text(
+                      '🎯 PEMINDAIAN BERHASIL: Objek kamera cocok dengan $targetName!',
+                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primaryGlow, width: 2),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: AppColors.primaryGlow, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: SizedBox(
-                              width: 50,
-                              height: 50,
-                              child: _buildSpeciesImage(thumb, AppColors.primaryGlow),
-                            ),
+                          Text(
+                            '🎯 COCOK: Objek Adalah $targetName',
+                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(name, style: const TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                                Text(latin, style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontStyle: FontStyle.italic, color: AppColors.textMuted)),
-                              ],
-                            ),
+                          Text(
+                            'Kamera terverifikasi mengarah ke objek fisik $targetName yang benar.',
+                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted),
                           ),
-                          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primaryGlow, size: 22),
                         ],
                       ),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -434,12 +423,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '❌ PEMINDAIAN GAGAL: Objek di layar kamera Anda tidak terdeteksi atau tidak cocok dengan dataset spesies ($speciesName)!',
+              '❌ PEMINDAIAN GAGAL: Objek di layar kamera Anda (seperti Laptop / Tembok) tidak sesuai dengan objek target ($speciesName)!',
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
             ),
             const SizedBox(height: 10),
             const Text(
-              'Pastikan kamera diarahkan dengan tepat ke objek yang sesuai (Sandal, PCX, Pohon Pisang, dll.) dan tekan PINDAI & COCOKKAN OBJEK kembali.',
+              'Arahkan kamera secara langsung ke objek fisik yang benar (misalnya Sandal, Motor PCX, atau Daun Mangga) lalu tekan PINDAI & COCOKKAN OBJEK.',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
           ],

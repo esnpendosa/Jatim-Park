@@ -5,12 +5,14 @@ class InventoryState {
   final int ekoSpheres;
   final int berries;
   final int radars;
+  final bool isDailyClaimed;
   final List<SpeciesModel> capturedSpecies;
 
   InventoryState({
     required this.ekoSpheres,
     required this.berries,
     required this.radars,
+    required this.isDailyClaimed,
     required this.capturedSpecies,
   });
 
@@ -18,12 +20,14 @@ class InventoryState {
     int? ekoSpheres,
     int? berries,
     int? radars,
+    bool? isDailyClaimed,
     List<SpeciesModel>? capturedSpecies,
   }) {
     return InventoryState(
       ekoSpheres: ekoSpheres ?? this.ekoSpheres,
       berries: berries ?? this.berries,
       radars: radars ?? this.radars,
+      isDailyClaimed: isDailyClaimed ?? this.isDailyClaimed,
       capturedSpecies: capturedSpecies ?? this.capturedSpecies,
     );
   }
@@ -35,6 +39,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
           ekoSpheres: 15,
           berries: 30,
           radars: 5,
+          isDailyClaimed: false,
           capturedSpecies: [
             SpeciesModel(
               id: 2,
@@ -85,12 +90,16 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     return false;
   }
 
-  void addItems({int spheres = 0, int berries = 0, int radars = 0}) {
+  bool claimDailySupply() {
+    if (state.isDailyClaimed) return false;
+
     state = state.copyWith(
-      ekoSpheres: state.ekoSpheres + spheres,
-      berries: state.berries + berries,
-      radars: state.radars + radars,
+      ekoSpheres: state.ekoSpheres + 5,
+      berries: state.berries + 10,
+      radars: state.radars + 1,
+      isDailyClaimed: true,
     );
+    return true;
   }
 
   void addCapturedSpecies(SpeciesModel species) {
