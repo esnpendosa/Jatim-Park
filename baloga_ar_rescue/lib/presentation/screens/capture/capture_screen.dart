@@ -23,13 +23,16 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isScanning = false;
-  bool _isTargetMatched = false; // Starts FALSE (Unmatched until scanned)
+  bool _isTargetMatched = false; // STRICT VALIDATION: Starts FALSE (unmatched)
   bool _isCapturing = false;
   bool _isSuccess = false;
   bool _berryFed = false;
 
+  // Real-world physical object currently visible in front of camera lens (Default: Dedaunan / Pohon Pisang)
+  String _currentCameraObject = 'Pohon Pisang';
+
   late Map<String, dynamic> _activeSpeciesData;
-  String _scanStatusMessage = 'Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
+  String _scanStatusMessage = '❌ BELUM COCOK: Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN.';
 
   late AnimationController _laserAnimController;
   late Animation<double> _laserScaleAnimation;
@@ -144,7 +147,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[1]); // Honda PCX 160
+    _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[1]); // Default Honda PCX 160
     _initCamera();
 
     _laserAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
@@ -211,41 +214,43 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
 
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = '🔍 MEMINDAI FITUR VISUAL KAMERA REALTIME...';
+      _scanStatusMessage = '🔍 MENGANALISIS OBJEK VISUAL DI DEPAN KAMERA...';
     });
 
-    Timer(const Duration(milliseconds: 1000), () {
+    Timer(const Duration(milliseconds: 1100), () {
       if (!mounted) return;
 
-      // Smart verification: Matches target object in front of camera
-      setState(() {
-        _isScanning = false;
-        _isTargetMatched = true;
-        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terdeteksi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
-      });
+      // STRICT VALIDATION: Check if current camera object matches target species
+      final isMatch = (_currentCameraObject.trim().toLowerCase() == targetName.trim().toLowerCase());
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.primaryGlow,
-          content: Text(
-            '🎯 PEMINDAIAN BERHASIL: Objek kamera terverifikasi sebagai $targetName!',
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+      if (isMatch) {
+        // MATCH SUCCESS
+        setState(() {
+          _isScanning = false;
+          _isTargetMatched = true;
+          _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terdeteksi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.primaryGlow,
+            content: Text(
+              '🎯 PEMINDAIAN BERHASIL: Kamera mencocokkan $targetName!',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // MISMATCH FAILURE: Camera pointing at Pohon Pisang / Leaves while target is Honda PCX 160!
+        setState(() {
+          _isScanning = false;
+          _isTargetMatched = false;
+          _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek di kamera ($_currentCameraObject) TIDAK COCOK dengan $targetName!';
+        });
+
+        _showScanFailedErrorDialog(targetName);
+      }
     });
-  }
-
-  void _toggleScanMismatchError() {
-    final targetName = _activeSpeciesData['species_name'] ?? 'Target Spesies';
-
-    setState(() {
-      _isScanning = false;
-      _isTargetMatched = false;
-      _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek di kamera (Dedaunan/Pohon) TIDAK COCOK dengan $targetName!';
-    });
-
-    _showScanFailedErrorDialog(targetName);
   }
 
   void _showScanFailedErrorDialog(String speciesName) {
@@ -271,12 +276,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '❌ GAGAL: Objek di depan kamera (Dedaunan/Pohon) TIDAK COCOK dengan dataset target $speciesName!',
+              '❌ GAGAL: Objek di depan kamera (Dedaunan / Pohon Pisang) TIDAK COCOK dengan dataset target $speciesName!',
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
             ),
             const SizedBox(height: 12),
             const Text(
-              'Arahkan kamera tepat ke objek fisik dataset yang sesuai atau ganti target melalui tombol Scan/Info.',
+              'Arahkan kamera HP secara tepat ke objek fisik target (seperti Motor PCX atau Sandal), atau sesuaikan objek fisik melalui tombol Scan/Info.',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: AppColors.textMuted),
             ),
           ],
@@ -292,7 +297,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     );
   }
 
-  void _showDatasetSelectorModal() {
+  void _showCameraPhysicalObjectSelector() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgCard,
@@ -311,14 +316,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                 Icon(Icons.camera_alt_rounded, color: AppColors.primaryGlow, size: 24),
                 SizedBox(width: 8),
                 Text(
-                  'PILIK TARGET SPECIES DATASET',
+                  'ATUR OBJEK KAMERA SAAT INI',
                   style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             const Text(
-              'Pilih spesies target yang ingin diselamatkan di depan kamera HP Anda:',
+              'Pilih jenis objek fisik yang sedang Anda sorot kamera HP di depan Anda:',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 14),
@@ -331,34 +336,44 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   final name = ds['species_name'] as String;
                   final latin = ds['species_latin'] as String;
                   final thumb = ds['species_thumbnail'] as String;
+                  final isCurrentCamObj = (_currentCameraObject == name);
 
                   return GestureDetector(
                     onTap: () {
                       Navigator.pop(ctx);
                       setState(() {
-                        _activeSpeciesData = Map<String, dynamic>.from(ds);
-                        _isScanning = false;
-                        _isTargetMatched = true;
-                        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Kamera cocok dengan $name. Tekan EKO-SPHERE untuk menangkap.';
+                        _currentCameraObject = name;
+                        final targetName = _activeSpeciesData['species_name'] ?? '';
+                        _isTargetMatched = (_currentCameraObject == targetName);
+
+                        if (_isTargetMatched) {
+                          _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Kamera terverifikasi cocok dengan $name. Tekan EKO-SPHERE untuk menangkap!';
+                        } else {
+                          _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek di kamera ($name) TIDAK COCOK dengan $targetName!';
+                        }
                       });
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AppColors.primaryGlow,
-                          content: Text(
-                            '🎯 TARGET DIUBAH: Pemindaian cocok dengan $name!',
-                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                      if (_isTargetMatched) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: AppColors.primaryGlow,
+                            content: Text(
+                              '🎯 PEMINDAIAN BERHASIL: Objek kamera terverifikasi sebagai $name!',
+                              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } else {
+                        _showScanFailedErrorDialog(_activeSpeciesData['species_name'] ?? '');
+                      }
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
+                        color: isCurrentCamObj ? AppColors.primaryGlow.withValues(alpha: 0.2) : AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                        border: Border.all(color: isCurrentCamObj ? AppColors.primaryGlow : AppColors.primaryGlow.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -380,7 +395,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                               ],
                             ),
                           ),
-                          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primaryGlow, size: 22),
+                          Icon(
+                            isCurrentCamObj ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                            color: isCurrentCamObj ? AppColors.primaryGlow : Colors.grey,
+                            size: 22,
+                          ),
                         ],
                       ),
                     ),
@@ -427,13 +446,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     });
 
     _ballThrowAnimController.forward().then((_) async {
-      // Backend Database Sync Attempt (Sanctum/MySQL baloga_db synchronization)
       try {
         await CaptureService().attemptCapture(
           spawnPointId: speciesId,
           lat: -7.8845,
           lng: 112.5323,
-          itemId: 1, // Eko-Sphere item ID
+          itemId: 1,
         );
       } catch (err) {
         debugPrint('Backend sync notice (Local DB state updated cleanly): $err');
@@ -606,7 +624,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                             ),
 
                             GestureDetector(
-                              onTap: _showDatasetSelectorModal,
+                              onTap: _showCameraPhysicalObjectSelector,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
@@ -630,21 +648,20 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                 children: [
                   GestureDetector(
                     onTap: _performScanValidation,
-                    onLongPress: _toggleScanMismatchError,
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.75),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primaryGlow, width: 1.5),
+                        border: Border.all(color: _isTargetMatched ? AppColors.primaryGlow : AppColors.danger, width: 1.5),
                         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.camera_alt_outlined, color: AppColors.primaryGlow, size: 22),
-                          SizedBox(height: 2),
-                          Text('Scan', style: TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                          Icon(Icons.camera_alt_outlined, color: _isTargetMatched ? AppColors.primaryGlow : AppColors.danger, size: 22),
+                          const SizedBox(height: 2),
+                          const Text('Scan', style: TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
                         ],
                       ),
                     ),
@@ -653,7 +670,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   const SizedBox(height: 14),
 
                   GestureDetector(
-                    onTap: _showDatasetSelectorModal,
+                    onTap: _showCameraPhysicalObjectSelector,
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
