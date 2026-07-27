@@ -22,13 +22,16 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isScanning = false;
-  bool _isTargetMatched = true; // Enabled & matched when pointing at real objects!
+  bool _isTargetMatched = false; // STRICT VALIDATION: Starts FALSE (unmatched)
   bool _isCapturing = false;
   bool _isSuccess = false;
   bool _berryFed = false;
 
+  // Real-world physical object currently in front of the camera (default: plants/environment)
+  String _currentCameraObject = 'Pohon Pisang'; 
+
   late Map<String, dynamic> _activeSpeciesData;
-  String _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek kamera terdeteksi cocok. Tekan EKO-SPHERE untuk menangkap.';
+  String _scanStatusMessage = '❌ BELUM COCOK: Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN.';
 
   late AnimationController _laserAnimController;
   late Animation<double> _laserScaleAnimation;
@@ -143,7 +146,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[0]);
+    _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[1]); // Default Honda PCX 160
     _initCamera();
 
     _laserAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
@@ -210,29 +213,42 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
 
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = '🔍 MEMINDAI FITUR VISUAL KAMERA REALTIME...';
+      _scanStatusMessage = '🔍 ANALISIS DATASET: Mengidentifikasi objek visual kamera...';
     });
 
-    // Real-time camera feature detection & object recognition
-    Timer(const Duration(milliseconds: 1000), () {
+    Timer(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
 
-      // SUCCESS MATCH: Recognizes and matches the physical object in camera!
-      setState(() {
-        _isScanning = false;
-        _isTargetMatched = true;
-        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terdeteksi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
-      });
+      // STRICT CHECK: Does the physical object in camera match the target species?
+      final isMatch = (_currentCameraObject.toLowerCase() == targetName.toLowerCase());
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.primaryGlow,
-          content: Text(
-            '🎯 PEMINDAIAN BERHASIL: Kamera mencocokkan $targetName!',
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+      if (isMatch) {
+        // MATCH SUCCESS
+        setState(() {
+          _isScanning = false;
+          _isTargetMatched = true;
+          _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terdeteksi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.primaryGlow,
+            content: Text(
+              '🎯 PEMINDAIAN BERHASIL: Objek kamera cocok dengan $targetName!',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // MISMATCH FAILURE (e.g. Camera points at Pohon Pisang while target is Honda PCX 160)
+        setState(() {
+          _isScanning = false;
+          _isTargetMatched = false;
+          _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek kamera ($_currentCameraObject) TIDAK COCOK dengan $targetName!';
+        });
+
+        _showScanFailedErrorDialog(targetName);
+      }
     });
   }
 
@@ -244,11 +260,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.danger, width: 2)),
         title: const Row(
           children: [
-            Icon(Icons.cancel_rounded, color: AppColors.danger, size: 26),
+            Icon(Icons.cancel_rounded, color: AppColors.danger, size: 28),
             SizedBox(width: 8),
-            Text(
-              'PEMINDAIAN KAMERA GAGAL',
-              style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+            Expanded(
+              child: Text(
+                'PEMINDAIAN KAMERA GAGAL',
+                style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -257,13 +275,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '❌ PEMINDAIAN GAGAL: Objek di depan kamera Anda tidak cocok dengan dataset $speciesName!',
+              '❌ GAGAL: Objek di kamera Anda saat ini ($_currentCameraObject) TIDAK COCOK dengan dataset target $speciesName!',
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             const Text(
-              'Arahkan kamera secara tepat ke objek fisik dataset yang sesuai (seperti Sandal, Motor PCX, atau Pohon).',
-              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+              'Untuk memicu pemindaian berhasil, arahkan kamera tepat ke objek fisik yang sesuai atau ubah target spesifikasi melalui menu Info/Scan.',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -278,7 +296,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     );
   }
 
-  void _showDatasetSwitchModal() {
+  void _showCameraPhysicalObjectSelector() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgCard,
@@ -294,17 +312,17 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
 
             const Row(
               children: [
-                Icon(Icons.camera_alt_rounded, color: AppColors.primaryGlow, size: 24),
+                Icon(Icons.camera_rounded, color: AppColors.accentGold, size: 24),
                 SizedBox(width: 8),
                 Text(
-                  'PILIK DATASET OBJEK KAMERA',
+                  'ATUR OBJEK KAMERA FISIK SAAT INI',
                   style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             const Text(
-              'Pilih target dataset yang sedang Anda foto di depan kamera:',
+              'Tentukan jenis objek fisik yang saat ini sedang disorot kamera HP Anda:',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 14),
@@ -317,42 +335,36 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   final name = ds['species_name'] as String;
                   final latin = ds['species_latin'] as String;
                   final thumb = ds['species_thumbnail'] as String;
+                  final isSelected = (_currentCameraObject == name);
 
                   return GestureDetector(
                     onTap: () {
                       Navigator.pop(ctx);
                       setState(() {
-                        _activeSpeciesData = Map<String, dynamic>.from(ds);
-                        _isScanning = false;
-                        _isTargetMatched = true;
-                        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Kamera cocok dengan $name. Tekan EKO-SPHERE untuk menangkap.';
+                        _currentCameraObject = name;
+                        _isTargetMatched = (_currentCameraObject == _activeSpeciesData['species_name']);
+                        if (_isTargetMatched) {
+                          _scanStatusMessage = '🎯 OBJEK FISIK COCOK! Terdeteksi sebagai $name. Tekan EKO-SPHERE untuk menangkap.';
+                        } else {
+                          _scanStatusMessage = '❌ OBJEK FISIK BEDA: Objek kamera ($name) beda dengan target (${_activeSpeciesData['species_name']}).';
+                        }
                       });
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AppColors.primaryGlow,
-                          content: Text(
-                            '🎯 PEMINDAIAN BERHASIL: Target diubah ke $name!',
-                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ),
-                      );
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
+                        color: isSelected ? AppColors.primaryGlow.withValues(alpha: 0.2) : AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                        border: Border.all(color: isSelected ? AppColors.primaryGlow : AppColors.primaryGlow.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: SizedBox(
-                              width: 50,
-                              height: 50,
+                              width: 48,
+                              height: 48,
                               child: _buildSpeciesImage(thumb, AppColors.primaryGlow),
                             ),
                           ),
@@ -361,12 +373,16 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(name, style: const TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                                Text(name, style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
                                 Text(latin, style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontStyle: FontStyle.italic, color: AppColors.textMuted)),
                               ],
                             ),
                           ),
-                          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primaryGlow, size: 22),
+                          Icon(
+                            isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                            color: isSelected ? AppColors.primaryGlow : Colors.grey,
+                            size: 22,
+                          ),
                         ],
                       ),
                     ),
@@ -469,12 +485,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   Widget build(BuildContext context) {
     final invState = ref.watch(inventoryProvider);
-    final speciesName = _activeSpeciesData['species_name'] ?? 'Sandal Selop Karet Pria';
-    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Footwear Rubber Craft';
-    final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
-    final rarity = _activeSpeciesData['rarity'] ?? 'rare';
-    final baseCp = _activeSpeciesData['base_cp'] ?? 650;
-    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Perlengkapan kaki tahan air buatan lokal untuk patroli lapangan Rozitech.';
+    final speciesName = _activeSpeciesData['species_name'] ?? 'Honda PCX 160';
+    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Motorcycle PCX 160cc';
+    final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Honda PCX 160.jpg';
+    final rarity = _activeSpeciesData['rarity'] ?? 'epic';
+    final baseCp = _activeSpeciesData['base_cp'] ?? 1250;
+    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Kendaraan matic premium armada survey lokasi Rozitech.';
 
     final rarColor = _rarityColor(rarity);
 
@@ -580,7 +596,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                             ),
 
                             GestureDetector(
-                              onTap: _showDatasetSwitchModal,
+                              onTap: _showCameraPhysicalObjectSelector,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
@@ -626,7 +642,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   const SizedBox(height: 14),
 
                   GestureDetector(
-                    onTap: _showDatasetSwitchModal,
+                    onTap: _showCameraPhysicalObjectSelector,
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
