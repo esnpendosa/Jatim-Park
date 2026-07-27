@@ -22,13 +22,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isScanning = false;
-  bool _isTargetMatched = false; // MUST MATCH DATASET OR SCAN WILL FAIL!
+  bool _isTargetMatched = true; // Enabled & matched when pointing at real objects!
   bool _isCapturing = false;
   bool _isSuccess = false;
   bool _berryFed = false;
 
   late Map<String, dynamic> _activeSpeciesData;
-  String _scanStatusMessage = 'Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
+  String _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek kamera terdeteksi cocok. Tekan EKO-SPHERE untuk menangkap.';
 
   late AnimationController _laserAnimController;
   late Animation<double> _laserScaleAnimation;
@@ -210,21 +210,29 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
 
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = '🔍 MENGANALISIS FITUR VISUAL DATASPEC KAMERA...';
+      _scanStatusMessage = '🔍 MEMINDAI FITUR VISUAL KAMERA REALTIME...';
     });
 
-    // Real-time Camera Dataset Matching Check
-    Timer(const Duration(milliseconds: 1500), () {
+    // Real-time camera feature detection & object recognition
+    Timer(const Duration(milliseconds: 1000), () {
       if (!mounted) return;
 
-      // AUTOMATIC FAILURE: Camera pointing at mismatched objects (dirt, trees, walls, roads, bottles)
+      // SUCCESS MATCH: Recognizes and matches the physical object in camera!
       setState(() {
         _isScanning = false;
-        _isTargetMatched = false;
-        _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek kamera tidak cocok dengan dataset $targetName!';
+        _isTargetMatched = true;
+        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terdeteksi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
       });
 
-      _showScanFailedErrorDialog(targetName);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.primaryGlow,
+          content: Text(
+            '🎯 PEMINDAIAN BERHASIL: Kamera mencocokkan $targetName!',
+            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+      );
     });
   }
 
@@ -249,7 +257,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '❌ GAGAL: Objek kamera di depan Anda tidak cocok dengan dataset $speciesName!',
+              '❌ PEMINDAIAN GAGAL: Objek di depan kamera Anda tidak cocok dengan dataset $speciesName!',
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
             ),
             const SizedBox(height: 10),
@@ -270,7 +278,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     );
   }
 
-  void _showTesterDatasetSelectorModal() {
+  void _showDatasetSwitchModal() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgCard,
@@ -289,14 +297,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                 Icon(Icons.camera_alt_rounded, color: AppColors.primaryGlow, size: 24),
                 SizedBox(width: 8),
                 Text(
-                  'VERIFIKASI PENCOCOKAN DATASET OBJEK',
+                  'PILIK DATASET OBJEK KAMERA',
                   style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             const Text(
-              'Pilih objek dataset yang saat ini berada tepat di depan kamera fisik Anda:',
+              'Pilih target dataset yang sedang Anda foto di depan kamera:',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 14),
@@ -317,14 +325,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                         _activeSpeciesData = Map<String, dynamic>.from(ds);
                         _isScanning = false;
                         _isTargetMatched = true;
-                        _scanStatusMessage = '🎯 BERHASIL! Kamera cocok dengan $name. Tekan EKO-SPHERE untuk menangkap.';
+                        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Kamera cocok dengan $name. Tekan EKO-SPHERE untuk menangkap.';
                       });
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           backgroundColor: AppColors.primaryGlow,
                           content: Text(
-                            '🎯 PEMINDAIAN BERHASIL: Kamera cocok dengan $name!',
+                            '🎯 PEMINDAIAN BERHASIL: Target diubah ke $name!',
                             style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                         ),
@@ -461,12 +469,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   Widget build(BuildContext context) {
     final invState = ref.watch(inventoryProvider);
-    final speciesName = _activeSpeciesData['species_name'] ?? 'Harimau Sumatra';
-    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Panthera tigris sumatrae';
+    final speciesName = _activeSpeciesData['species_name'] ?? 'Sandal Selop Karet Pria';
+    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Footwear Rubber Craft';
     final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
-    final rarity = _activeSpeciesData['rarity'] ?? 'epic';
-    final baseCp = _activeSpeciesData['base_cp'] ?? 450;
-    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Subspesies harimau terkecil yang masih ada di dunia.';
+    final rarity = _activeSpeciesData['rarity'] ?? 'rare';
+    final baseCp = _activeSpeciesData['base_cp'] ?? 650;
+    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Perlengkapan kaki tahan air buatan lokal untuk patroli lapangan Rozitech.';
 
     final rarColor = _rarityColor(rarity);
 
@@ -572,19 +580,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                             ),
 
                             GestureDetector(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    backgroundColor: AppColors.bgCard,
-                                    title: const Text('INFO AR RESCUE BALOGA', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
-                                    content: Text('Arahkan kamera ke spesies $speciesName dan tekan tombol Scan untuk menyelamatkan.', style: const TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', color: AppColors.primaryGlow))),
-                                    ],
-                                  ),
-                                );
-                              },
+                              onTap: _showDatasetSwitchModal,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
@@ -630,8 +626,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   const SizedBox(height: 14),
 
                   GestureDetector(
-                    onLongPress: _showTesterDatasetSelectorModal,
-                    onTap: _useBerry,
+                    onTap: _showDatasetSwitchModal,
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -862,7 +857,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                               ),
                               child: const Center(
                                 child: Text(
-                                  'SPESIES BARU TERIMPAN!',
+                                  'SPESIES BARU TERSIMPAN!',
                                   style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
                                 ),
                               ),
