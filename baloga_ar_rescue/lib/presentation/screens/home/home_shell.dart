@@ -21,130 +21,145 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final idx = _getIndex(context);
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: Container(
-        height: 76,
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A1810),
-          border: Border(top: BorderSide(color: AppColors.primaryGlow.withValues(alpha: 0.25), width: 1.5)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 25,
-              offset: const Offset(0, -8),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // 1. Beranda / Peta
-                _NavItem(
-                  icon: Icons.home_filled,
-                  activeIcon: Icons.home_filled,
-                  label: 'Beranda',
-                  index: 0,
-                  current: idx,
-                  onTap: () => context.go('/map'),
-                ),
 
-                // 2. Inventori
-                _NavItem(
-                  icon: Icons.inventory_2_outlined,
-                  activeIcon: Icons.inventory_2,
-                  label: 'Inventori',
-                  index: 1,
-                  current: idx,
-                  onTap: () => context.go('/inventory'),
-                ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (idx != 0) {
+          // System back button returns to Beranda / Peta (/map) instead of exiting app!
+          context.go('/map');
+        } else {
+          if (context.canPop()) {
+            context.pop();
+          }
+        }
+      },
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A1810),
+            border: Border(top: BorderSide(color: AppColors.primaryGlow.withValues(alpha: 0.25), width: 1.5)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 25,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // 1. Beranda / Peta
+                  _NavItem(
+                    icon: Icons.home_filled,
+                    activeIcon: Icons.home_filled,
+                    label: 'Beranda',
+                    index: 0,
+                    current: idx,
+                    onTap: () => context.go('/map'),
+                  ),
 
-                // 3. CENTER BIG GLOWING SCAN BUTTON (Auto-detects nearest species in real-time)
-                GestureDetector(
-                  onTap: () {
-                    final spawnPointsAsync = ref.read(spawnPointsProvider);
-                    final points = spawnPointsAsync.asData?.value ?? [];
-                    final nearestSp = points.isNotEmpty ? points.first : null;
-                    final species = nearestSp?.species;
+                  // 2. Inventori
+                  _NavItem(
+                    icon: Icons.inventory_2_outlined,
+                    activeIcon: Icons.inventory_2,
+                    label: 'Inventori',
+                    index: 1,
+                    current: idx,
+                    onTap: () => context.go('/inventory'),
+                  ),
 
-                    context.go('/capture/${nearestSp?.id ?? 101}', extra: {
-                      'species_id': species?.id ?? 2,
-                      'species_name': species?.name ?? 'Sandal Selop Karet Pria',
-                      'species_latin': species?.latinName ?? 'Footwear Rubber Craft',
-                      'species_thumbnail': species?.thumbnailUrl ?? 'assets/Sandal Selop Karet Pria.jpg',
-                      'species_fact': species?.funFact ?? 'Perlengkapan kaki tahan air buatan lokal untuk patroli lapangan.',
-                      'base_cp': species?.baseCp ?? 650,
-                      'rarity': species?.rarity ?? 'rare',
-                      'item_id': 1,
-                    });
-                  },
-                  child: Container(
-                    transform: Matrix4.translationValues(0, -10, 0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primaryLight, AppColors.primaryGlow],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryGlow.withValues(alpha: 0.7),
-                                blurRadius: 18,
-                                spreadRadius: 3,
+                  // 3. CENTER BIG GLOWING SCAN BUTTON (Auto-detects nearest species in real-time)
+                  GestureDetector(
+                    onTap: () {
+                      final spawnPointsAsync = ref.read(spawnPointsProvider);
+                      final points = spawnPointsAsync.asData?.value ?? [];
+                      final nearestSp = points.isNotEmpty ? points.first : null;
+                      final species = nearestSp?.species;
+
+                      context.go('/capture/${nearestSp?.id ?? 101}', extra: {
+                        'species_id': species?.id ?? 2,
+                        'species_name': species?.name ?? 'Sandal Selop Karet Pria',
+                        'species_latin': species?.latinName ?? 'Footwear Rubber Craft',
+                        'species_thumbnail': species?.thumbnailUrl ?? 'assets/Sandal Selop Karet Pria.jpg',
+                        'species_fact': species?.funFact ?? 'Perlengkapan kaki tahan air buatan lokal untuk patroli lapangan.',
+                        'base_cp': species?.baseCp ?? 650,
+                        'rarity': species?.rarity ?? 'rare',
+                        'item_id': 1,
+                      });
+                    },
+                    child: Container(
+                      transform: Matrix4.translationValues(0, -10, 0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [AppColors.primaryLight, AppColors.primaryGlow],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryGlow.withValues(alpha: 0.7),
+                                  blurRadius: 18,
+                                  spreadRadius: 3,
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 28),
+                            ),
                           ),
-                          child: const Center(
-                            child: Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 28),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Scan',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primaryGlow,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Scan',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryGlow,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // 4. Misi
-                _NavItem(
-                  icon: Icons.assignment_outlined,
-                  activeIcon: Icons.assignment_turned_in,
-                  label: 'Misi',
-                  index: 3,
-                  current: idx,
-                  onTap: () => context.go('/missions'),
-                ),
+                  // 4. Misi
+                  _NavItem(
+                    icon: Icons.assignment_outlined,
+                    activeIcon: Icons.assignment_turned_in,
+                    label: 'Misi',
+                    index: 3,
+                    current: idx,
+                    onTap: () => context.go('/missions'),
+                  ),
 
-                // 5. Profil
-                _NavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: 'Profil',
-                  index: 4,
-                  current: idx,
-                  onTap: () => context.go('/profile'),
-                ),
-              ],
+                  // 5. Profil
+                  _NavItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icons.person,
+                    label: 'Profil',
+                    index: 4,
+                    current: idx,
+                    onTap: () => context.go('/profile'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
