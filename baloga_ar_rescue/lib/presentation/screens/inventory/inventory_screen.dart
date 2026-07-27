@@ -1,11 +1,8 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:baloga_ar_rescue/data/services/inventory_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:baloga_ar_rescue/presentation/providers/inventory_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
-
-final inventoryProvider = FutureProvider<List<Map<String, dynamic>>>((ref) => InventoryService().getInventory());
-final itemsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) => InventoryService().getItems());
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -33,47 +30,52 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgDark,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Inventori', style: TextStyle(fontFamily: 'Outfit', fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                  Text('Item & koleksi spesiesmu', style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textMuted)),
-                  const SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(14)),
-                    child: TabBar(
-                      controller: _tabCtrl,
-                      labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 13),
-                      unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w400, fontSize: 13),
-                      labelColor: AppColors.primaryGlow,
-                      unselectedLabelColor: AppColors.textMuted,
-                      indicator: BoxDecoration(color: AppColors.primaryGlow.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                      dividerColor: Colors.transparent,
-                      tabs: const [Tab(text: '🧪 Item'), Tab(text: '🐾 Koleksi')],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            Expanded(
-              child: TabBarView(
-                controller: _tabCtrl,
-                children: [
-                  _ItemsTab(),
-                  _CollectionTab(),
-                ],
-              ),
-            ),
-          ],
+      appBar: AppBar(
+        backgroundColor: AppColors.bgDark,
+        elevation: 0,
+        title: const Text(
+          'INVENTORI & KOLEKSI RANGER',
+          style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.2),
         ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TabBar(
+                controller: _tabCtrl,
+                labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w500, fontSize: 13),
+                labelColor: AppColors.primaryGlow,
+                unselectedLabelColor: AppColors.textMuted,
+                indicator: BoxDecoration(
+                  color: AppColors.primaryGlow.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: '🎒 ITEM & BOLA'),
+                  Tab(text: '🦁 SPESIES TERSIMPAN'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _ItemsTab(),
+                _CollectionTab(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -82,196 +84,249 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 class _ItemsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(itemsProvider);
-    return itemsAsync.when(
-      data: (items) => GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.1,
-        ),
-        itemCount: items.length,
-        itemBuilder: (ctx, i) => _ItemCard(item: items[i]),
-      ),
-      loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primaryGlow))),
-      error: (e, _) => Center(child: Text('Gagal memuat item', style: const TextStyle(fontFamily: 'Outfit', color: AppColors.danger))),
-    );
-  }
-}
+    final invState = ref.watch(inventoryProvider);
 
-class _ItemCard extends StatelessWidget {
-  final Map<String, dynamic> item;
-  const _ItemCard({required this.item});
+    final itemsList = [
+      {
+        'id': 1,
+        'name': 'Eko-Sphere Regular',
+        'type': 'ball',
+        'quantity': invState.ekoSpheres,
+        'icon': Icons.sports_volleyball,
+        'color': AppColors.primaryGlow,
+        'description': 'Bola penangkap standar untuk menyelamatkan spesies flora & fauna.',
+      },
+      {
+        'id': 2,
+        'name': 'Eko-Sphere Great',
+        'type': 'ball',
+        'quantity': 5,
+        'icon': Icons.sports_baseball,
+        'color': AppColors.accentBlue,
+        'description': 'Bola tingkat tinggi dengan rasio penangkapan 1.5x lebih kuat.',
+      },
+      {
+        'id': 3,
+        'name': 'Buah Berry Nutrisi',
+        'type': 'food',
+        'quantity': invState.berries,
+        'icon': Icons.apple_rounded,
+        'color': AppColors.accentGold,
+        'description': 'Memberi makan spesies untuk menenangkan dan meningkatkan sukses tangkap +30%.',
+      },
+      {
+        'id': 4,
+        'name': 'Radar Ekologi AR',
+        'type': 'utility',
+        'quantity': invState.radars,
+        'icon': Icons.radar_rounded,
+        'color': AppColors.accentPurple,
+        'description': 'Meningkatkan akurasi pemindaian reticle target pada kamera AR.',
+      },
+      {
+        'id': 5,
+        'name': 'Serum Booster CP',
+        'type': 'booster',
+        'quantity': 2,
+        'icon': Icons.science_rounded,
+        'color': AppColors.rarityLegendary,
+        'description': 'Meningkatkan CP spesies tersimpan sebesar +100 CP.',
+      },
+    ];
 
-  @override
-  Widget build(BuildContext context) {
-    final typeColors = {
-      'capture_ball': AppColors.accentBlue,
-      'scanner': AppColors.primaryGlow,
-      'radar': AppColors.accentGold,
-      'booster': AppColors.accentPurple,
-    };
-    final color = typeColors[item['type']] ?? AppColors.textMuted;
-    final qty = item['quantity'] ?? 0;
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: itemsList.length,
+      itemBuilder: (ctx, i) {
+        final item = itemsList[i];
+        final color = item['color'] as Color;
+        final qty = item['quantity'] as int;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: qty > 0 ? color.withOpacity(0.35) : AppColors.textMuted.withOpacity(0.1)),
-      ),
-      child: Stack(
-        children: [
-          Padding(
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.35), width: 1.2),
+            boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8)],
+          ),
+          child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Stack(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(_itemIcon(item['type']), color: color, size: 26),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(item['name'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary)),
-                    Text(item['description'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted)),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      margin: const EdgeInsets.only(right: 14),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(item['icon'] as IconData, color: color, size: 28),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['name'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item['description'] as String,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 40),
                   ],
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'x$qty',
+                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          // Stock badge
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: qty > 0 ? color : AppColors.textMuted.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text('x$qty', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
-  }
-
-  IconData _itemIcon(String? type) {
-    switch (type) {
-      case 'capture_ball': return Icons.catching_pokemon;
-      case 'scanner': return Icons.document_scanner_outlined;
-      case 'radar': return Icons.radar;
-      case 'booster': return Icons.local_florist;
-      default: return Icons.inventory_2_outlined;
-    }
   }
 }
 
 class _CollectionTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invAsync = ref.watch(inventoryProvider);
-    return invAsync.when(
-      data: (inventory) => inventory.isEmpty
-          ? Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.catching_pokemon, color: AppColors.textMuted, size: 52),
-                const SizedBox(height: 12),
-                const Text('Belum ada spesies yang ditangkap', style: TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted, fontSize: 14)),
-                const SizedBox(height: 6),
-                Text('Pergi ke Peta dan mulai selamatkan spesies!', style: TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted.withOpacity(0.6), fontSize: 12)),
-              ]),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.78,
+    final invState = ref.watch(inventoryProvider);
+    final speciesList = invState.capturedSpecies;
+
+    Color rarityColor(String rarity) {
+      switch (rarity) {
+        case 'legendary': return AppColors.rarityLegendary;
+        case 'epic': return AppColors.rarityEpic;
+        case 'rare': return AppColors.rarityRare;
+        default: return AppColors.rarityCommon;
+      }
+    }
+
+    Widget buildImageWidget(String? url, Color color) {
+      if (url != null && url.startsWith('assets/')) {
+        return Image.asset(url, fit: BoxFit.cover, height: 110, width: double.infinity);
+      }
+      return CachedNetworkImage(
+        imageUrl: url ?? '',
+        height: 110,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        placeholder: (c, u) => Container(height: 110, color: AppColors.bgCard, child: Icon(Icons.pets, color: color)),
+        errorWidget: (c, u, e) => Container(height: 110, color: AppColors.bgCard, child: Icon(Icons.pets, color: color)),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 0.78,
+      ),
+      itemCount: speciesList.length,
+      itemBuilder: (ctx, i) {
+        final sp = speciesList[i];
+        final rarity = sp.rarity;
+        final color = rarityColor(rarity);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Stack(
+                  children: [
+                    buildImageWidget(sp.thumbnailUrl, color),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
+                        child: Text(
+                          rarity.toUpperCase(),
+                          style: const TextStyle(fontFamily: 'Outfit', fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.primaryGlow, borderRadius: BorderRadius.circular(6)),
+                        child: const Text(
+                          'TERSIMPAN',
+                          style: TextStyle(fontFamily: 'Outfit', fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              itemCount: inventory.length,
-              itemBuilder: (ctx, i) => _CapturedCard(item: inventory[i]),
-            ),
-      loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primaryGlow))),
-      error: (e, _) => Center(child: Text('Gagal memuat koleksi', style: const TextStyle(fontFamily: 'Outfit', color: AppColors.danger))),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sp.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
+                    ),
+                    Text(
+                      sp.latinName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 9, fontStyle: FontStyle.italic, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${sp.baseCp} CP',
+                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
-
-class _CapturedCard extends StatelessWidget {
-  final Map<String, dynamic> item;
-  const _CapturedCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final species = item['species'] as Map<String, dynamic>?;
-    if (species == null) return const SizedBox.shrink();
-    final rarity = species['rarity'] ?? 'common';
-    final color = rarityColor(rarity);
-    final thumbUrl = species['thumbnail_url'] as String?;
-    final qty = (item['quantity'] as num? ?? 0).toInt();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.45), width: 1.5),
-      ),
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-            child: Stack(
-              children: [
-                thumbUrl != null
-                    ? CachedNetworkImage(imageUrl: thumbUrl, height: 110, width: double.infinity, fit: BoxFit.cover,
-                        placeholder: (c, u) => Container(height: 110, color: AppColors.bgSurface, child: const Center(child: Icon(Icons.eco, color: AppColors.textMuted, size: 32))),
-                        errorWidget: (c, u, e) => Container(height: 110, color: AppColors.bgSurface, child: const Center(child: Icon(Icons.eco, color: AppColors.textMuted, size: 32))))
-                    : Container(height: 110, color: AppColors.bgSurface, child: const Center(child: Icon(Icons.eco, color: AppColors.textMuted, size: 32))),
-                Positioned(
-                  top: 8, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: color.withOpacity(0.85), borderRadius: BorderRadius.circular(6)),
-                    child: Text(rarity.toUpperCase(), style: const TextStyle(fontFamily: 'Outfit', fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ),
-                ),
-                Positioned(
-                  top: 8, left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: AppColors.bgDark.withOpacity(0.75), borderRadius: BorderRadius.circular(6)),
-                    child: Text('x$qty', style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(species['name'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary)),
-                Text(species['latin_name'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontFamily: 'Outfit', fontSize: 9, fontStyle: FontStyle.italic, color: AppColors.textMuted)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-

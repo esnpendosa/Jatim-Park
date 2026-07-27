@@ -20,6 +20,7 @@ dependencies:
   json_annotation: ^4.9.0
   flutter_dotenv: ^5.0.0
   permission_handler: ^11.0.0
+  camera: ^0.11.0
   cached_network_image: ^3.4.0
   go_router: ^14.0.0
 
@@ -34,3 +35,14 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/images/
+    - assets/Bayam Duri.jpg
+    - assets/daun mangga.jpg
+    - assets/Honda PCX 160.jpg
+    - assets/kopdes.jpg
+    - assets/Kudzu.jpg
+    - assets/Lidah Mertua.jpg
+    - assets/Pohon Pisang.jpg
+    - assets/Rumput Ekor Kucing.jpg
+    - assets/Saga Rambat.jpg
+    - assets/Sandal Selop Karet Pria.jpg

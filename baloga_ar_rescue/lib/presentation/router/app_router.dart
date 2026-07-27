@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
@@ -34,9 +34,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/capture/:spawnPointId',
         builder: (ctx, state) {
-          final id = int.parse(state.pathParameters['spawnPointId']!);
-          final extra = state.extra as Map<String, dynamic>?;
-          return CaptureScreen(spawnPointId: id, extra: extra);
+          final extra = (state.extra as Map<String, dynamic>?) ?? {};
+          return CaptureScreen(speciesData: extra);
         },
       ),
     ],

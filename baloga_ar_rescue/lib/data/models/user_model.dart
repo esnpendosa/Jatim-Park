@@ -32,4 +32,27 @@ class UserModel {
         speciesFound: json['species_found'] ?? 0,
         badgesCount: json['badges_count'] ?? 0,
       );
+
+  UserModel copyWith({
+    int? id,
+    String? name,
+    String? email,
+    String? avatarUrl,
+    int? level,
+    int? xp,
+    int? points,
+    int? speciesFound,
+    int? badgesCount,
+  }) =>
+      UserModel(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        email: email ?? this.email,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
+        level: level ?? this.level,
+        xp: xp ?? this.xp,
+        points: points ?? this.points,
+        speciesFound: speciesFound ?? this.speciesFound,
+        badgesCount: badgesCount ?? this.badgesCount,
+      );
 }

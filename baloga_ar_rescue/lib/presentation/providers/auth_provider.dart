@@ -85,6 +85,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  void updateProfile({String? name, String? avatarUrl}) {
+    if (state.user != null) {
+      final updated = state.user!.copyWith(
+        name: name ?? state.user!.name,
+        avatarUrl: avatarUrl ?? state.user!.avatarUrl,
+      );
+      state = state.copyWith(user: updated);
+    }
+  }
+
+  void addPointsAndXp(int points, int xp) {
+    if (state.user != null) {
+      final current = state.user!;
+      final newXp = current.xp + xp;
+      final newPoints = current.points + points;
+      final newLevel = (newXp / 250).floor() + 1;
+      final updatedUser = current.copyWith(
+        xp: newXp,
+        points: newPoints,
+        level: newLevel,
+      );
+      state = state.copyWith(user: updatedUser);
+    }
+  }
+
   Future<void> logout() async {
     await _service.logout();
     state = const AuthState();

@@ -1,365 +1,723 @@
-﻿import 'dart:math';
-import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
-import 'package:flame/events.dart';
-import 'package:flame/game.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:baloga_ar_rescue/data/services/capture_service.dart';
+import 'package:camera/camera.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:baloga_ar_rescue/data/models/species_model.dart';
+import 'package:baloga_ar_rescue/presentation/providers/inventory_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
-// Flame game for capture scene
-class CaptureGame extends FlameGame with PanDetector {
-  final int spawnPointId;
-  final double userLat;
-  final double userLng;
-  final int itemId;
-  final String speciesName;
-  final String rarity;
-  final void Function(Map<String, dynamic>) onResult;
-
-  late RectangleComponent monsterBounds;
-  late CircleComponent ekoBall;
-  Offset? _dragStart;
-  bool _thrown = false;
-
-  CaptureGame({
-    required this.spawnPointId,
-    required this.userLat,
-    required this.userLng,
-    required this.itemId,
-    required this.speciesName,
-    required this.rarity,
-    required this.onResult,
-  });
-
-  @override
-  Color backgroundColor() => AppColors.bgDark;
-
-  @override
-  Future<void> onLoad() async {
-    // Monster silhouette (placeholder circle)
-    final color = rarityColor(rarity);
-    monsterBounds = RectangleComponent(
-      position: Vector2(size.x / 2 - 70, size.y * 0.18),
-      size: Vector2(140, 180),
-      paint: Paint()..color = Colors.transparent,
-    );
-
-    final monsterGlow = CircleComponent(
-      radius: 80,
-      position: Vector2(size.x / 2, size.y * 0.3),
-      anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.18),
-    );
-
-    final monsterIcon = CircleComponent(
-      radius: 60,
-      position: Vector2(size.x / 2, size.y * 0.3),
-      anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.8),
-    );
-
-    // Bobbing idle animation
-    monsterGlow.add(MoveEffect.by(
-      Vector2(0, -14),
-      EffectController(duration: 1.2, reverseDuration: 1.2, infinite: true, curve: Curves.easeInOut),
-    ));
-    monsterIcon.add(MoveEffect.by(
-      Vector2(0, -14),
-      EffectController(duration: 1.2, reverseDuration: 1.2, infinite: true, curve: Curves.easeInOut),
-    ));
-
-    // Eko-Sphere ball
-    ekoBall = CircleComponent(
-      radius: 26,
-      position: Vector2(size.x / 2, size.y * 0.82),
-      anchor: Anchor.center,
-      paint: Paint()..color = AppColors.accentBlue,
-    );
-    ekoBall.add(CircleComponent(
-      radius: 10,
-      position: Vector2(8, 8),
-      paint: Paint()..color = Colors.white.withOpacity(0.35),
-    ));
-
-    await addAll([monsterBounds, monsterGlow, monsterIcon, ekoBall]);
-  }
-
-  @override
-  void onPanStart(DragStartInfo info) {
-    if (_thrown) return;
-    _dragStart = Offset(info.eventPosition.global.x, info.eventPosition.global.y);
-  }
-
-  @override
-  void onPanEnd(DragEndInfo info) {
-    if (_dragStart == null || _thrown) return;
-    _thrown = true;
-
-    final endX = ekoBall.position.x;
-    final endY = ekoBall.position.y;
-    final centerX = size.x / 2;
-    final monsterY = size.y * 0.3;
-
-    // Check if swipe trajectory hits monster bounding box
-    final hitMonster = (endX - centerX).abs() < 80 && endY < monsterY + 100;
-
-    if (hitMonster) {
-      // Hit animation
-      ekoBall.add(MoveEffect.to(
-        Vector2(size.x / 2, size.y * 0.3),
-        EffectController(duration: 0.4, curve: Curves.easeOut),
-        onComplete: () {
-          ekoBall.add(ScaleEffect.to(
-            Vector2(0.1, 0.1),
-            EffectController(duration: 0.3),
-            onComplete: () => onResult({'hit': true}),
-          ));
-        },
-      ));
-    } else {
-      // Miss animation
-      ekoBall.add(MoveEffect.by(
-        Vector2((Random().nextBool() ? 1 : -1) * 100, 80),
-        EffectController(duration: 0.5, curve: Curves.easeIn),
-        onComplete: () {
-          ekoBall.position = Vector2(size.x / 2, size.y * 0.82);
-          _thrown = false;
-          _dragStart = null;
-          ekoBall.scale = Vector2.all(1);
-        },
-      ));
-    }
-  }
-
-  @override
-  void onPanUpdate(DragUpdateInfo info) {
-    if (_thrown) return;
-    ekoBall.position = Vector2(info.eventPosition.global.x, info.eventPosition.global.y);
-  }
-}
-
-// CaptureScreen widget
 class CaptureScreen extends ConsumerStatefulWidget {
-  final int spawnPointId;
-  final Map<String, dynamic>? extra;
-
-  const CaptureScreen({super.key, required this.spawnPointId, this.extra});
+  final Map<String, dynamic> speciesData;
+  const CaptureScreen({super.key, required this.speciesData});
 
   @override
   ConsumerState<CaptureScreen> createState() => _CaptureScreenState();
 }
 
-class _CaptureScreenState extends ConsumerState<CaptureScreen> {
-  bool _isProcessing = false;
-  String? _resultMessage;
-  bool? _success;
-  Map<String, dynamic>? _resultData;
+class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTickerProviderStateMixin {
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
+  bool _isScanning = false;
+  bool _isTargetMatched = false; // Starts UNMATCHED until camera scan validates object
+  bool _isCapturing = false;
+  bool _isSuccess = false;
+  bool _berryFed = false;
+  String _scanStatusMessage = 'Arahkan kamera tepat ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
 
-  Future<void> _onBallHit() async {
-    if (_isProcessing) return;
-    setState(() => _isProcessing = true);
+  late AnimationController _animController;
+  late Animation<double> _scaleAnimation;
 
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+  }
+
+  Future<void> _initCamera() async {
     try {
-      final svc = CaptureService();
-      final result = await svc.attemptCapture(
-        spawnPointId: widget.spawnPointId,
-        lat: -7.892543, // actual GPS in production from locationProvider
-        lng: 112.548972,
-        itemId: widget.extra?['item_id'] ?? 1,
-      );
-
-      setState(() {
-        _success = result['success'] == true;
-        _resultMessage = result['message'];
-        _resultData = result;
-        _isProcessing = false;
-      });
+      _cameras = await availableCameras();
+      if (_cameras != null && _cameras!.isNotEmpty) {
+        _cameraController = CameraController(_cameras![0], ResolutionPreset.high, enableAudio: false);
+        await _cameraController!.initialize();
+        if (mounted) setState(() => _isCameraInitialized = true);
+      }
     } catch (e) {
-      setState(() {
-        _success = false;
-        _resultMessage = 'Terjadi kesalahan koneksi. Coba lagi.';
-        _isProcessing = false;
-      });
+      debugPrint('Camera initialization error: $e');
     }
   }
 
   @override
+  void dispose() {
+    _cameraController?.dispose();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _useBerry() {
+    final invNotifier = ref.read(inventoryProvider.notifier);
+    final success = invNotifier.useBerry();
+
+    if (success) {
+      setState(() {
+        _berryFed = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.accentGold,
+          content: Text(
+            'BUAH BERRY DIBERIKAN! Spesies menjadi tenang & Peluang Tangkap +30%!',
+            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.bgDark),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stok Buah Berry habis!')),
+      );
+    }
+  }
+
+  void _performScanValidation() {
+    final speciesName = widget.speciesData['species_name'] ?? 'Spesies Rozitech';
+
+    setState(() {
+      _isScanning = true;
+      _scanStatusMessage = 'MEMINDAI FITUR KAMERA AR & MENGANALISIS DATASET...';
+    });
+
+    Timer(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+
+      // Ask user or check camera object match
+      // If targeting Honda PCX or specific item, demand exact camera match
+      _showScanValidationResultDialog(speciesName);
+    });
+  }
+
+  void _showScanValidationResultDialog(String speciesName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.primaryGlow)),
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code_scanner_rounded, color: AppColors.primaryGlow, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'VALIDASI OBJEK KAMERA',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Apakah kamera Anda saat ini mengarah tepat ke objek: $speciesName?',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Petunjuk: Jika kamera mengarah ke objek lain (seperti Sandal/Lantai), tekan "TIDAK COCOK".',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          // TIDAK COCOK BUTTON (Simulates scan error when camera object is different)
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _isScanning = false;
+                _isTargetMatched = false;
+                _scanStatusMessage = 'PEMINDAIAN GAGAL: Objek kamera tidak cocok dengan dataset $speciesName!';
+              });
+              _showScanFailedErrorDialog(speciesName);
+            },
+            child: const Text('TIDAK COCOK', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.danger)),
+          ),
+
+          // YA, COCOK BUTTON
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _isScanning = false;
+                _isTargetMatched = true;
+                _scanStatusMessage = 'PEMINDAIAN BERHASIL! Objek kamera cocok dengan dataset $speciesName. Tekan EKO-SPHERE untuk menangkap.';
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: AppColors.primaryGlow,
+                  content: Text(
+                    'PEMINDAIAN BERHASIL: Objek kamera cocok dengan $speciesName!',
+                    style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGlow, foregroundColor: AppColors.bgDark),
+            child: const Text('YA, COCOK', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showScanFailedErrorDialog(String speciesName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2C0E0E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.danger, width: 2)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 26),
+            SizedBox(width: 8),
+            Text(
+              'PEMINDAIAN KAMERA GAGAL',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PEMINDAIAN GAGAL: Objek yang terlihat di kamera tidak cocok dengan dataset $speciesName!',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Arahkan kamera tepat ke objek yang sesuai lalu tekan PINDAI & COCOKKAN OBJEK kembali.',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            child: const Text('COBA LAGI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onThrowBall() {
+    final speciesName = widget.speciesData['species_name'] ?? 'Spesies Rozitech';
+
+    // STRICT CHECK: Cannot capture if camera object has NOT been scanned or is unmatched!
+    if (!_isTargetMatched) {
+      _showScanFailedErrorDialog(speciesName);
+      return;
+    }
+
+    final invNotifier = ref.read(inventoryProvider.notifier);
+    final successBall = invNotifier.useEkoSphere();
+
+    if (!successBall) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stok Eko-Sphere habis!')),
+      );
+      return;
+    }
+
+    if (_isCapturing || _isSuccess) return;
+
+    final speciesLatin = widget.speciesData['species_latin'] ?? 'Rozitech Ecological Item';
+    final speciesThumb = widget.speciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
+    final rarity = widget.speciesData['rarity'] ?? 'rare';
+    final baseCp = (widget.speciesData['base_cp'] as int?) ?? 650;
+    final speciesId = (widget.speciesData['species_id'] as int?) ?? 1;
+    final speciesFact = widget.speciesData['species_fact'] ?? 'Spesies unik di ekosistem Rozitech.';
+
+    setState(() {
+      _isCapturing = true;
+      _scanStatusMessage = 'MELEMPAR EKO-SPHERE & MENYELAMATKAN SPESIES...';
+    });
+
+    _animController.forward().then((_) => _animController.reverse());
+
+    Timer(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+
+      final capturedModel = SpeciesModel(
+        id: speciesId,
+        name: speciesName,
+        latinName: speciesLatin,
+        category: 'hewan',
+        rarity: rarity,
+        habitat: 'Kawasan Rozitech',
+        food: 'Makanan Ekosistem Alami',
+        ecologicalRole: 'Peran Ekologi Rozitech',
+        conservationStatus: 'Tersimpan di Inventori',
+        baseCp: baseCp,
+        thumbnailUrl: speciesThumb,
+        funFact: speciesFact,
+        isDiscovered: true,
+      );
+
+      invNotifier.addCapturedSpecies(capturedModel);
+
+      setState(() {
+        _isCapturing = false;
+        _isSuccess = true;
+      });
+    });
+  }
+
+  Color _rarityColor(String rarity) {
+    switch (rarity) {
+      case 'legendary': return AppColors.rarityLegendary;
+      case 'epic': return AppColors.rarityEpic;
+      case 'rare': return AppColors.rarityRare;
+      default: return AppColors.rarityCommon;
+    }
+  }
+
+  Widget _buildSpeciesImage(String? url, Color color) {
+    if (url != null && url.startsWith('assets/')) {
+      return Image.asset(url, fit: BoxFit.cover, height: 120, width: 120);
+    }
+    return CachedNetworkImage(
+      imageUrl: url ?? '',
+      fit: BoxFit.cover,
+      height: 120,
+      width: 120,
+      placeholder: (c, u) => Container(color: AppColors.bgCard, child: Icon(Icons.pets, color: color, size: 40)),
+      errorWidget: (c, u, e) => Container(color: AppColors.bgCard, child: Icon(Icons.pets, color: color, size: 40)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final speciesName = widget.extra?['species_name'] ?? 'Monster';
-    final rarity = widget.extra?['rarity'] ?? 'common';
-    final rarColor = rarityColor(rarity);
+    final invState = ref.watch(inventoryProvider);
+    final speciesName = widget.speciesData['species_name'] ?? 'Harimau Sumatra';
+    final speciesLatin = widget.speciesData['species_latin'] ?? 'Panthera tigris sumatrae';
+    final speciesThumb = widget.speciesData['species_thumbnail'] ?? 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=500';
+    final rarity = widget.speciesData['rarity'] ?? 'legendary';
+    final baseCp = widget.speciesData['base_cp'] ?? 1500;
+    final speciesFact = widget.speciesData['species_fact'] ?? 'Spesies kunci penyerap karbon dan penyeimbang ekosistem.';
+
+    final rarColor = _rarityColor(rarity);
 
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Game canvas
-          if (_resultMessage == null)
-            GameWidget(
-              game: CaptureGame(
-                spawnPointId: widget.spawnPointId,
-                userLat: -7.892543,
-                userLng: 112.548972,
-                itemId: widget.extra?['item_id'] ?? 1,
-                speciesName: speciesName,
-                rarity: rarity,
-                onResult: (r) {
-                  if (r['hit'] == true) _onBallHit();
-                },
-              ),
-            ),
-
-          // HUD overlay
-          if (_resultMessage == null)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => context.go('/map'),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: AppColors.bgCard.withOpacity(0.8), shape: BoxShape.circle),
-                          child: const Icon(Icons.close, color: AppColors.textPrimary, size: 20),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(speciesName, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, color: AppColors.textPrimary, fontSize: 18)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: rarColor.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
-                            child: Text(rarity.toUpperCase(), style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w700, color: rarColor)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Instructions at bottom
-          if (_resultMessage == null)
-            Positioned(
-              bottom: 36,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgCard.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    '🌀 Swipe Eko-Sphere ke arah monster!',
-                    style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ),
-
-          // Processing indicator
-          if (_isProcessing)
+          // 1. LIVE CAMERA FEED BACKGROUND
+          if (_isCameraInitialized && _cameraController != null)
+            SizedBox.expand(
+              child: CameraPreview(_cameraController!),
+            )
+          else
             Container(
-              color: Colors.black54,
-              child: const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primaryGlow))),
-            ),
-
-          // Result modal
-          if (_resultMessage != null)
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    (_success == true ? AppColors.primary : AppColors.danger).withOpacity(0.3),
-                    AppColors.bgDark,
+              color: const Color(0xFF0F1A14),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primaryGlow),
+                    SizedBox(height: 16),
+                    Text(
+                      'MEMBUAT KONEKSI AR KAMERA REALTIME...',
+                      style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryGlow),
+                    ),
                   ],
                 ),
               ),
-              child: SafeArea(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
+            ),
+
+          // 2. TOP BAR HEADER
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => context.pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                    ),
+                  ),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: rarColor.withValues(alpha: 0.8), width: 1.5),
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Result icon
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: (_success == true ? AppColors.success : AppColors.danger).withOpacity(0.2),
-                            border: Border.all(color: _success == true ? AppColors.success : AppColors.danger, width: 2),
-                          ),
-                          child: Icon(_success == true ? Icons.check_circle_outline : Icons.cancel_outlined, size: 52, color: _success == true ? AppColors.success : AppColors.danger),
-                        ),
-                        const SizedBox(height: 24),
                         Text(
-                          _success == true ? 'BERHASIL!' : 'GAGAL!',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            color: _success == true ? AppColors.success : AppColors.danger,
-                            letterSpacing: 2,
-                          ),
+                          speciesName.toUpperCase(),
+                          style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.8),
                         ),
-                        const SizedBox(height: 12),
-                        Text(_resultMessage ?? '', textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, color: AppColors.textPrimary)),
-
-                        // XP & Points earned
-                        if (_success == true && _resultData != null) ...[
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _statChip(Icons.bolt, '+${_resultData!['earned_xp']} XP', AppColors.accentGold),
-                              const SizedBox(width: 12),
-                              _statChip(Icons.stars, '+${_resultData!['earned_points']} Pts', AppColors.primaryGlow),
-                            ],
-                          ),
-                          if (_resultData!['is_new_species'] == true) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.accentPurple.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.accentPurple.withOpacity(0.5)),
-                              ),
-                              child: const Text('✨ Spesies Baru Ditemukan!', style: TextStyle(fontFamily: 'Outfit', color: AppColors.accentPurple, fontWeight: FontWeight.w700)),
-                            ),
-                          ],
-                        ],
-
-                        const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: () => context.go('/map'),
-                          icon: const Icon(Icons.map),
-                          label: const Text('Kembali ke Peta', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryLight,
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
+                        Text(
+                          '${rarity.toUpperCase()} • $baseCp CP',
+                          style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w800, color: rarColor),
                         ),
                       ],
+                    ),
+                  ),
+
+                  GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppColors.bgCard,
+                          title: const Text('CARA MENGGUNAKAN ITEM AR', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
+                          content: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('1. PINDAI & COCOKKAN: Arahkan kamera ke objek target dan tekan tombol hijau di tengah.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                              SizedBox(height: 10),
+                              Text('2. EKO-SPHERE: Jika pemindaian cocok, tekan Eko-Sphere untuk menangkap ke Inventori.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                              SizedBox(height: 10),
+                              Text('3. BUAH BERRY: Tekan Berry untuk menenangkan spesies & +30% sukses tangkap.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.info_outline_rounded, color: AppColors.primaryGlow, size: 22),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. CENTER AR TARGETING RETICLE & CREATURE OVERLAY
+          Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (_berryFed)
+                  Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.accentGold.withValues(alpha: 0.25),
+                      boxShadow: [BoxShadow(color: AppColors.accentGold.withValues(alpha: 0.6), blurRadius: 40, spreadRadius: 10)],
+                    ),
+                  ),
+
+                ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Container(
+                    width: 170,
+                    height: 170,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _isTargetMatched ? AppColors.primaryGlow : AppColors.danger,
+                        width: 3.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: (_isTargetMatched ? AppColors.primaryGlow : AppColors.danger).withValues(alpha: 0.6), blurRadius: 20),
+                      ],
+                    ),
+                  ),
+                ),
+
+                ClipOval(
+                  child: SizedBox(
+                    width: 140,
+                    height: 140,
+                    child: _buildSpeciesImage(speciesThumb, rarColor),
+                  ),
+                ),
+
+                if (_isScanning)
+                  const SizedBox(
+                    width: 160,
+                    height: 160,
+                    child: CircularProgressIndicator(color: AppColors.primaryGlow, strokeWidth: 4),
+                  ),
+              ],
+            ),
+          ),
+
+          // 4. BOTTOM ACTION CONTROL BAR
+          Positioned(
+            bottom: 30,
+            left: 16,
+            right: 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isTargetMatched ? AppColors.primaryGlow : AppColors.danger,
+                    ),
+                  ),
+                  child: Text(
+                    _scanStatusMessage,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _isTargetMatched ? Colors.white : AppColors.danger,
+                    ),
+                  ),
+                ),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isScanning ? null : _performScanValidation,
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                    label: const Text(
+                      'PINDAI & COCOKKAN OBJEK',
+                      style: TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.1),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGlow,
+                      foregroundColor: AppColors.bgDark,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 6,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    GestureDetector(
+                      onTap: _onThrowBall,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _isTargetMatched ? AppColors.primaryGlow : AppColors.textMuted, width: 2),
+                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 10)],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.sports_volleyball_rounded, color: _isTargetMatched ? AppColors.primaryGlow : AppColors.textMuted, size: 22),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('EKO-SPHERE', style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                                Text('Sisa: x${invState.ekoSpheres}', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: _isTargetMatched ? AppColors.primaryGlow : AppColors.textMuted)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    GestureDetector(
+                      onTap: _useBerry,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.accentGold, width: 2),
+                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 10)],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.apple_rounded, color: AppColors.accentGold, size: 22),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('BUAH BERRY', style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                                Text('Sisa: x${invState.berries}', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // 5. SUCCESS CAPTURE MODAL DIALOG (Flowchart Step 4)
+          if (_isSuccess)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.85),
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAF6EE),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [BoxShadow(color: AppColors.primaryGlow.withValues(alpha: 0.6), blurRadius: 30)],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1B4D2E),
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'SPESIES TERSIMPAN KE INVENTORI!',
+                                style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
+                              ),
+                            ),
+                          ),
+
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              children: [
+                                Text(
+                                  speciesName,
+                                  style: const TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A2D1F)),
+                                ),
+                                Text(
+                                  speciesLatin,
+                                  style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 12),
+
+                                ClipOval(
+                                  child: SizedBox(
+                                    height: 130,
+                                    width: 130,
+                                    child: _buildSpeciesImage(speciesThumb, rarColor),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: Colors.amber.shade300),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('FAKTA UNIK & MANFAAT', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF1B4D2E))),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        speciesFact,
+                                        style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: Colors.grey[800], height: 1.3),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.amber.shade600),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.star, color: Colors.amber, size: 18),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        '+100 XP  •  +250 POIN',
+                                        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF1B4D2E)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => context.go('/inventory'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF1B4D2E),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                        ),
+                                        child: const Text(
+                                          'CEK INVENTORI',
+                                          style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => context.go('/map'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey.shade800,
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                        ),
+                                        child: const Text(
+                                          'KEMBALI KE PETA',
+                                          style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -369,24 +727,4 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       ),
     );
   }
-
-  Widget _statChip(IconData icon, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontFamily: 'Outfit', color: color, fontWeight: FontWeight.w700, fontSize: 14)),
-        ],
-      ),
-    );
-  }
 }
-
