@@ -14,6 +14,11 @@ class AdminMissionController extends Controller
         return view('admin.missions.index', compact('missions'));
     }
 
+    public function show(Mission $mission)
+    {
+        return redirect()->route('admin.missions.index');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

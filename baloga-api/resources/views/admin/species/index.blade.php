@@ -30,7 +30,7 @@
                         <tr class="hover:bg-emerald-900/10 transition">
                             <td class="p-4">
                                 @if($s->thumbnail_url)
-                                    <img src="{{ $s->thumbnail_url }}" alt="{{ $s->name }}" class="w-12 h-12 rounded-xl object-cover border border-emerald-900/50">
+                                    <img src="{{ $s->thumbnail_url }}" alt="{{ $s->name }}" class="w-12 h-12 rounded-xl object-cover border border-emerald-900/50" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed={{ urlencode($s->name) }}';">
                                 @else
                                     <div class="w-12 h-12 rounded-xl bg-[#1A2D1F] flex items-center justify-center text-slate-600 font-bold text-lg">🌱</div>
                                 @endif

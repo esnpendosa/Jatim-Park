@@ -23,6 +23,28 @@ class Mission extends Model
         'xp_reward' => 'integer',
     ];
 
+    public function getIconUrlAttribute($value)
+    {
+        if (empty($value)) {
+            return 'https://api.dicebear.com/7.x/bottts/svg?seed=' . urlencode($this->title);
+        }
+
+        if (str_contains($value, 'localhost') || str_contains($value, '127.0.0.1') || str_contains($value, '10.0.2.2')) {
+            $path = parse_url($value, PHP_URL_PATH);
+            return asset(ltrim($path, '/'));
+        }
+
+        if (!str_starts_with($value, 'http://') && !str_starts_with($value, 'https://')) {
+            $localPath = public_path(ltrim($value, '/'));
+            if (file_exists($localPath)) {
+                return asset(ltrim($value, '/'));
+            }
+            return 'https://api.dicebear.com/7.x/bottts/svg?seed=' . urlencode($this->title);
+        }
+
+        return $value;
+    }
+
     public function userMissions()
     {
         return $this->hasMany(UserMission::class);

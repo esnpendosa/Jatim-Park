@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminSettingController extends Controller
 {
@@ -26,7 +27,7 @@ class AdminSettingController extends Controller
             'app_name' => 'required|string|max:255',
             'app_tagline' => 'required|string|max:255',
             'api_domain' => 'required|string|max:255',
-            'logo_file' => 'nullable|image|mimes:jpeg,png,jpg,svg,webp|max:4096',
+            'logo_file' => 'nullable|file|max:4096',
         ]);
 
         AppSetting::set('app_name', $request->app_name);
@@ -34,8 +35,20 @@ class AdminSettingController extends Controller
         AppSetting::set('api_domain', $request->api_domain);
 
         if ($request->hasFile('logo_file')) {
-            $path = $request->file('logo_file')->store('app/logo', 'public');
-            AppSetting::set('app_logo_url', asset('storage/' . $path));
+            $file = $request->file('logo_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+            $fileName = 'logo_' . time() . '_' . Str::random(6) . '.' . $ext;
+
+            $destPath = storage_path('app/public/app/logo');
+            $pubPath = public_path('storage/app/logo');
+
+            if (!file_exists($destPath)) mkdir($destPath, 0777, true);
+            if (!file_exists($pubPath)) mkdir($pubPath, 0777, true);
+
+            $file->move($destPath, $fileName);
+            copy($destPath . '/' . $fileName, $pubPath . '/' . $fileName);
+
+            AppSetting::set('app_logo_url', asset('storage/app/logo/' . $fileName));
         }
 
         return back()->with('success', 'Pengaturan & Branding Aplikasi berhasil diperbarui secara dinamis!');

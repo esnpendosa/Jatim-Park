@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminItemController extends Controller
 {
@@ -14,17 +15,30 @@ class AdminItemController extends Controller
         return view('admin.items.index', compact('items'));
     }
 
+    public function show(Item $item)
+    {
+        return redirect()->route('admin.items.index');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'type' => 'required|in:capture_ball,scanner,radar,booster',
-            'icon_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'icon_file' => 'nullable|file|max:2048',
         ]);
 
         if ($request->hasFile('icon_file')) {
-            $path = $request->file('icon_file')->store('items/icons', 'public');
+            $file = $request->file('icon_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+            $fileName = 'item_' . time() . '_' . Str::random(6) . '.' . $ext;
+            $mime = $file->getClientMimeType() ?: 'image/png';
+
+            $path = $file->storeAs('items/icons', $fileName, [
+                'disk' => 'public',
+                'mimetype' => $mime,
+            ]);
             $validated['icon_url'] = asset('storage/' . $path);
         }
 

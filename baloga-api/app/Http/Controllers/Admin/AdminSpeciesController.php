@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Species;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AdminSpeciesController extends Controller
 {
@@ -33,23 +33,52 @@ class AdminSpeciesController extends Controller
             'conservation_status' => 'required|string|max:255',
             'fun_fact' => 'required|string',
             'base_cp' => 'required|integer|min:10',
-            'thumbnail_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
-            'model_3d_file' => 'nullable|file|mimes:zip,glb,gltf,obj,fbx|max:20480',
+            'thumbnail_file' => 'nullable|file|max:4096',
+            'model_3d_file' => 'nullable|file|max:20480',
         ]);
 
         if ($request->hasFile('thumbnail_file')) {
-            $path = $request->file('thumbnail_file')->store('species/thumbnails', 'public');
-            $validated['thumbnail_url'] = asset('storage/' . $path);
+            $file = $request->file('thumbnail_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+            $fileName = 'thumb_' . time() . '_' . Str::random(6) . '.' . $ext;
+
+            $destPath = storage_path('app/public/species/thumbnails');
+            $pubPath = public_path('storage/species/thumbnails');
+
+            if (!file_exists($destPath)) mkdir($destPath, 0777, true);
+            if (!file_exists($pubPath)) mkdir($pubPath, 0777, true);
+
+            $file->move($destPath, $fileName);
+            copy($destPath . '/' . $fileName, $pubPath . '/' . $fileName);
+
+            $validated['thumbnail_url'] = asset('storage/species/thumbnails/' . $fileName);
         }
 
         if ($request->hasFile('model_3d_file')) {
-            $path = $request->file('model_3d_file')->store('species/models', 'public');
-            $validated['model_3d_url'] = asset('storage/' . $path);
+            $file = $request->file('model_3d_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'glb');
+            $fileName = 'model_' . time() . '_' . Str::random(6) . '.' . $ext;
+
+            $destPath = storage_path('app/public/species/models');
+            $pubPath = public_path('storage/species/models');
+
+            if (!file_exists($destPath)) mkdir($destPath, 0777, true);
+            if (!file_exists($pubPath)) mkdir($pubPath, 0777, true);
+
+            $file->move($destPath, $fileName);
+            copy($destPath . '/' . $fileName, $pubPath . '/' . $fileName);
+
+            $validated['model_3d_url'] = asset('storage/species/models/' . $fileName);
         }
 
         Species::create($validated);
 
         return redirect()->route('admin.species.index')->with('success', 'Spesies baru berhasil ditambahkan!');
+    }
+
+    public function show(Species $species)
+    {
+        return redirect()->route('admin.species.edit', $species);
     }
 
     public function edit(Species $species)
@@ -70,18 +99,42 @@ class AdminSpeciesController extends Controller
             'conservation_status' => 'required|string|max:255',
             'fun_fact' => 'required|string',
             'base_cp' => 'required|integer|min:10',
-            'thumbnail_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
-            'model_3d_file' => 'nullable|file|mimes:zip,glb,gltf,obj,fbx|max:20480',
+            'thumbnail_file' => 'nullable|file|max:4096',
+            'model_3d_file' => 'nullable|file|max:20480',
         ]);
 
         if ($request->hasFile('thumbnail_file')) {
-            $path = $request->file('thumbnail_file')->store('species/thumbnails', 'public');
-            $validated['thumbnail_url'] = asset('storage/' . $path);
+            $file = $request->file('thumbnail_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+            $fileName = 'thumb_' . time() . '_' . Str::random(6) . '.' . $ext;
+
+            $destPath = storage_path('app/public/species/thumbnails');
+            $pubPath = public_path('storage/species/thumbnails');
+
+            if (!file_exists($destPath)) mkdir($destPath, 0777, true);
+            if (!file_exists($pubPath)) mkdir($pubPath, 0777, true);
+
+            $file->move($destPath, $fileName);
+            copy($destPath . '/' . $fileName, $pubPath . '/' . $fileName);
+
+            $validated['thumbnail_url'] = asset('storage/species/thumbnails/' . $fileName);
         }
 
         if ($request->hasFile('model_3d_file')) {
-            $path = $request->file('model_3d_file')->store('species/models', 'public');
-            $validated['model_3d_url'] = asset('storage/' . $path);
+            $file = $request->file('model_3d_file');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'glb');
+            $fileName = 'model_' . time() . '_' . Str::random(6) . '.' . $ext;
+
+            $destPath = storage_path('app/public/species/models');
+            $pubPath = public_path('storage/species/models');
+
+            if (!file_exists($destPath)) mkdir($destPath, 0777, true);
+            if (!file_exists($pubPath)) mkdir($pubPath, 0777, true);
+
+            $file->move($destPath, $fileName);
+            copy($destPath . '/' . $fileName, $pubPath . '/' . $fileName);
+
+            $validated['model_3d_url'] = asset('storage/species/models/' . $fileName);
         }
 
         $species->update($validated);
