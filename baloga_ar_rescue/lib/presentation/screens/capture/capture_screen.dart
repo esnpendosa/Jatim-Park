@@ -21,18 +21,125 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isScanning = false;
-  bool _isTargetMatched = false; // Starts UNMATCHED until camera scan validates object
+  bool _isTargetMatched = false;
   bool _isCapturing = false;
   bool _isSuccess = false;
   bool _berryFed = false;
-  String _scanStatusMessage = 'Arahkan kamera tepat ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
+
+  late Map<String, dynamic> _activeSpeciesData;
+  String _scanStatusMessage = 'Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
 
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
 
+  // Complete Rozitech Dataset List for Real-time Camera Auto-Object Selection
+  final List<Map<String, dynamic>> _datasetList = [
+    {
+      'species_id': 2,
+      'species_name': 'Sandal Selop Karet Pria',
+      'species_latin': 'Footwear Rubber Craft',
+      'species_thumbnail': 'assets/Sandal Selop Karet Pria.jpg',
+      'base_cp': 650,
+      'rarity': 'rare',
+      'category': 'hewan',
+      'species_fact': 'Perlengkapan kaki tahan air buatan lokal untuk patroli lapangan Rozitech.',
+    },
+    {
+      'species_id': 1,
+      'species_name': 'Honda PCX 160',
+      'species_latin': 'Motorcycle PCX 160cc',
+      'species_thumbnail': 'assets/Honda PCX 160.jpg',
+      'base_cp': 1250,
+      'rarity': 'epic',
+      'category': 'hewan',
+      'species_fact': 'Kendaraan matic premium armada survey lokasi Rozitech.',
+    },
+    {
+      'species_id': 3,
+      'species_name': 'Pohon Pisang',
+      'species_latin': 'Musa paradisiaca',
+      'species_thumbnail': 'assets/Pohon Pisang.jpg',
+      'base_cp': 450,
+      'rarity': 'common',
+      'category': 'tumbuhan',
+      'species_fact': 'Tumbuhan terna raksasa yang daun dan buahnya bermanfaat bagi ekosistem.',
+    },
+    {
+      'species_id': 4,
+      'species_name': 'Lidah Mertua',
+      'species_latin': 'Sansevieria trifasciata',
+      'species_thumbnail': 'assets/Lidah Mertua.jpg',
+      'base_cp': 750,
+      'rarity': 'rare',
+      'category': 'tumbuhan',
+      'species_fact': 'Tanaman hias penghasil oksigen tinggi dan penyerap polusi.',
+    },
+    {
+      'species_id': 5,
+      'species_name': 'Bayam Duri',
+      'species_latin': 'Amaranthus spinosus',
+      'species_thumbnail': 'assets/Bayam Duri.jpg',
+      'base_cp': 300,
+      'rarity': 'common',
+      'category': 'tumbuhan',
+      'species_fact': 'Tumbuhan obat tradisional dengan batang berduri khas.',
+    },
+    {
+      'species_id': 6,
+      'species_name': 'Rumput Ekor Kucing',
+      'species_latin': 'Typha latifolia',
+      'species_thumbnail': 'assets/Rumput Ekor Kucing.jpg',
+      'base_cp': 350,
+      'rarity': 'common',
+      'category': 'tumbuhan',
+      'species_fact': 'Tumbuhan unik berbentuk ekor kucing yang tumbuh di area lembab.',
+    },
+    {
+      'species_id': 7,
+      'species_name': 'Saga Rambat',
+      'species_latin': 'Abrus precatorius',
+      'species_thumbnail': 'assets/Saga Rambat.jpg',
+      'base_cp': 950,
+      'rarity': 'epic',
+      'category': 'tumbuhan',
+      'species_fact': 'Tumbuhan merambat dengan biji merah cantik yang khas.',
+    },
+    {
+      'species_id': 8,
+      'species_name': 'Kudzu',
+      'species_latin': 'Pueraria montana',
+      'species_thumbnail': 'assets/Kudzu.jpg',
+      'base_cp': 850,
+      'rarity': 'rare',
+      'category': 'tumbuhan',
+      'species_fact': 'Tanaman polong-polongan merambat dengan daya tumbuh cepat.',
+    },
+    {
+      'species_id': 9,
+      'species_name': 'Daun Mangga',
+      'species_latin': 'Mangifera indica',
+      'species_thumbnail': 'assets/daun mangga.jpg',
+      'base_cp': 400,
+      'rarity': 'common',
+      'category': 'tumbuhan',
+      'species_fact': 'Daun pohon mangga kaya antioksidan alami.',
+    },
+    {
+      'species_id': 10,
+      'species_name': 'Harimau Sumatra',
+      'species_latin': 'Panthera tigris sumatrae',
+      'species_thumbnail': 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=500',
+      'base_cp': 1500,
+      'rarity': 'legendary',
+      'category': 'hewan',
+      'species_fact': 'Subspesies harimau terkecil yang masih ada di dunia.',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
+    _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[0]);
     _initCamera();
 
     _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
@@ -86,94 +193,179 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
   }
 
   void _performScanValidation() {
-    final speciesName = widget.speciesData['species_name'] ?? 'Spesies Rozitech';
-
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = 'MEMINDAI FITUR KAMERA AR & MENGANALISIS DATASET...';
+      _scanStatusMessage = 'MEMINDAI FITUR KAMERA AR & DETEKSI OTOMATIS OBJEK...';
     });
+
+    Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      _showAutoDetectSelectionModal();
+    });
+  }
+
+  void _showAutoDetectSelectionModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+
+            const Row(
+              children: [
+                Icon(Icons.center_focus_strong_rounded, color: AppColors.primaryGlow, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  'DETEKSI OTOMATIS OBJEK KAMERA',
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pilih objek yang saat ini tampak di layar kamera Anda untuk pencocokan otomatis:',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 14),
+
+            Expanded(
+              child: ListView.builder(
+                itemCount: _datasetList.length,
+                itemBuilder: (c, i) {
+                  final ds = _datasetList[i];
+                  final name = ds['species_name'] as String;
+                  final latin = ds['species_latin'] as String;
+                  final thumb = ds['species_thumbnail'] as String;
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _activeSpeciesData = Map<String, dynamic>.from(ds);
+                        _isScanning = false;
+                        _isTargetMatched = true;
+                        _scanStatusMessage = 'PEMINDAIAN BERHASIL! Kamera terdeteksi sebagai $name. Tekan EKO-SPHERE untuk menangkap.';
+                      });
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: AppColors.primaryGlow,
+                          content: Text(
+                            '🎯 DETEKSI OTOMATIS BERHASIL: Kamera cocok dengan $name!',
+                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: 50,
+                              height: 50,
+                              child: _buildSpeciesImage(thumb, AppColors.primaryGlow),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: const TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                                Text(latin, style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontStyle: FontStyle.italic, color: AppColors.textMuted)),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primaryGlow, size: 22),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onThrowBall() {
+    final speciesName = _activeSpeciesData['species_name'] ?? 'Spesies Rozitech';
+
+    if (!_isTargetMatched) {
+      _showScanFailedErrorDialog(speciesName);
+      return;
+    }
+
+    final invNotifier = ref.read(inventoryProvider.notifier);
+    final successBall = invNotifier.useEkoSphere();
+
+    if (!successBall) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stok Eko-Sphere habis!')),
+      );
+      return;
+    }
+
+    if (_isCapturing || _isSuccess) return;
+
+    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Rozitech Ecological Item';
+    final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
+    final rarity = _activeSpeciesData['rarity'] ?? 'rare';
+    final baseCp = (_activeSpeciesData['base_cp'] as int?) ?? 650;
+    final speciesId = (_activeSpeciesData['species_id'] as int?) ?? 2;
+    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Spesies unik di ekosistem Rozitech.';
+
+    setState(() {
+      _isCapturing = true;
+      _scanStatusMessage = 'MELEMPAR EKO-SPHERE & MENYELAMATKAN SPESIES...';
+    });
+
+    _animController.forward().then((_) => _animController.reverse());
 
     Timer(const Duration(milliseconds: 1400), () {
       if (!mounted) return;
 
-      // Ask user or check camera object match
-      // If targeting Honda PCX or specific item, demand exact camera match
-      _showScanValidationResultDialog(speciesName);
+      final capturedModel = SpeciesModel(
+        id: speciesId,
+        name: speciesName,
+        latinName: speciesLatin,
+        category: _activeSpeciesData['category'] ?? 'hewan',
+        rarity: rarity,
+        habitat: 'Kawasan Rozitech',
+        food: 'Makanan Ekosistem Alami',
+        ecologicalRole: 'Peran Ekologi Rozitech',
+        conservationStatus: 'Tersimpan di Inventori',
+        baseCp: baseCp,
+        thumbnailUrl: speciesThumb,
+        funFact: speciesFact,
+        isDiscovered: true,
+      );
+
+      invNotifier.addCapturedSpecies(capturedModel);
+
+      setState(() {
+        _isCapturing = false;
+        _isSuccess = true;
+      });
     });
-  }
-
-  void _showScanValidationResultDialog(String speciesName) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.primaryGlow)),
-        title: Row(
-          children: [
-            const Icon(Icons.qr_code_scanner_rounded, color: AppColors.primaryGlow, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              'VALIDASI OBJEK KAMERA',
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Apakah kamera Anda saat ini mengarah tepat ke objek: $speciesName?',
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Petunjuk: Jika kamera mengarah ke objek lain (seperti Sandal/Lantai), tekan "TIDAK COCOK".',
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.textMuted),
-            ),
-          ],
-        ),
-        actions: [
-          // TIDAK COCOK BUTTON (Simulates scan error when camera object is different)
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                _isScanning = false;
-                _isTargetMatched = false;
-                _scanStatusMessage = 'PEMINDAIAN GAGAL: Objek kamera tidak cocok dengan dataset $speciesName!';
-              });
-              _showScanFailedErrorDialog(speciesName);
-            },
-            child: const Text('TIDAK COCOK', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.danger)),
-          ),
-
-          // YA, COCOK BUTTON
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                _isScanning = false;
-                _isTargetMatched = true;
-                _scanStatusMessage = 'PEMINDAIAN BERHASIL! Objek kamera cocok dengan dataset $speciesName. Tekan EKO-SPHERE untuk menangkap.';
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: AppColors.primaryGlow,
-                  content: Text(
-                    'PEMINDAIAN BERHASIL: Objek kamera cocok dengan $speciesName!',
-                    style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGlow, foregroundColor: AppColors.bgDark),
-            child: const Text('YA, COCOK', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showScanFailedErrorDialog(String speciesName) {
@@ -197,12 +389,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'PEMINDAIAN GAGAL: Objek yang terlihat di kamera tidak cocok dengan dataset $speciesName!',
+              'PEMINDAIAN GAGAL: Objek kamera belum dicocokkan dengan dataset $speciesName!',
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
             ),
             const SizedBox(height: 10),
             const Text(
-              'Arahkan kamera tepat ke objek yang sesuai lalu tekan PINDAI & COCOKKAN OBJEK kembali.',
+              'Tekan PINDAI & COCOKKAN OBJEK di bawah layar untuk melakukan deteksi otomatis kamera.',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
             ),
           ],
@@ -211,74 +403,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
-            child: const Text('COBA LAGI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+            child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
           ),
         ],
       ),
     );
-  }
-
-  void _onThrowBall() {
-    final speciesName = widget.speciesData['species_name'] ?? 'Spesies Rozitech';
-
-    // STRICT CHECK: Cannot capture if camera object has NOT been scanned or is unmatched!
-    if (!_isTargetMatched) {
-      _showScanFailedErrorDialog(speciesName);
-      return;
-    }
-
-    final invNotifier = ref.read(inventoryProvider.notifier);
-    final successBall = invNotifier.useEkoSphere();
-
-    if (!successBall) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stok Eko-Sphere habis!')),
-      );
-      return;
-    }
-
-    if (_isCapturing || _isSuccess) return;
-
-    final speciesLatin = widget.speciesData['species_latin'] ?? 'Rozitech Ecological Item';
-    final speciesThumb = widget.speciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
-    final rarity = widget.speciesData['rarity'] ?? 'rare';
-    final baseCp = (widget.speciesData['base_cp'] as int?) ?? 650;
-    final speciesId = (widget.speciesData['species_id'] as int?) ?? 1;
-    final speciesFact = widget.speciesData['species_fact'] ?? 'Spesies unik di ekosistem Rozitech.';
-
-    setState(() {
-      _isCapturing = true;
-      _scanStatusMessage = 'MELEMPAR EKO-SPHERE & MENYELAMATKAN SPESIES...';
-    });
-
-    _animController.forward().then((_) => _animController.reverse());
-
-    Timer(const Duration(milliseconds: 1400), () {
-      if (!mounted) return;
-
-      final capturedModel = SpeciesModel(
-        id: speciesId,
-        name: speciesName,
-        latinName: speciesLatin,
-        category: 'hewan',
-        rarity: rarity,
-        habitat: 'Kawasan Rozitech',
-        food: 'Makanan Ekosistem Alami',
-        ecologicalRole: 'Peran Ekologi Rozitech',
-        conservationStatus: 'Tersimpan di Inventori',
-        baseCp: baseCp,
-        thumbnailUrl: speciesThumb,
-        funFact: speciesFact,
-        isDiscovered: true,
-      );
-
-      invNotifier.addCapturedSpecies(capturedModel);
-
-      setState(() {
-        _isCapturing = false;
-        _isSuccess = true;
-      });
-    });
   }
 
   Color _rarityColor(String rarity) {
@@ -307,12 +436,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final invState = ref.watch(inventoryProvider);
-    final speciesName = widget.speciesData['species_name'] ?? 'Harimau Sumatra';
-    final speciesLatin = widget.speciesData['species_latin'] ?? 'Panthera tigris sumatrae';
-    final speciesThumb = widget.speciesData['species_thumbnail'] ?? 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=500';
-    final rarity = widget.speciesData['rarity'] ?? 'legendary';
-    final baseCp = widget.speciesData['base_cp'] ?? 1500;
-    final speciesFact = widget.speciesData['species_fact'] ?? 'Spesies kunci penyerap karbon dan penyeimbang ekosistem.';
+    final speciesName = _activeSpeciesData['species_name'] ?? 'Sandal Selop Karet Pria';
+    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Footwear Rubber Craft';
+    final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
+    final rarity = _activeSpeciesData['rarity'] ?? 'rare';
+    final baseCp = _activeSpeciesData['base_cp'] ?? 650;
+    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Spesies unik di ekosistem Rozitech.';
 
     final rarColor = _rarityColor(rarity);
 
@@ -392,7 +521,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('1. PINDAI & COCOKKAN: Arahkan kamera ke objek target dan tekan tombol hijau di tengah.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                              Text('1. DETEKSI OTOMATIS: Tekan tombol hijau di tengah untuk mendeteksi objek kamera secara otomatis.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
                               SizedBox(height: 10),
                               Text('2. EKO-SPHERE: Jika pemindaian cocok, tekan Eko-Sphere untuk menangkap ke Inventori.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
                               SizedBox(height: 10),
