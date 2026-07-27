@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:baloga_ar_rescue/data/models/species_model.dart';
 import 'package:baloga_ar_rescue/presentation/providers/inventory_provider.dart';
+import 'package:baloga_ar_rescue/presentation/providers/missions_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
 class CaptureScreen extends ConsumerStatefulWidget {
@@ -360,6 +361,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with SingleTicker
       );
 
       invNotifier.addCapturedSpecies(capturedModel);
+      ref.read(missionsProvider.notifier).incrementCaptureProgress();
 
       setState(() {
         _isCapturing = false;

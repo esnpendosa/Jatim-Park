@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baloga_ar_rescue/presentation/providers/auth_provider.dart';
+import 'package:baloga_ar_rescue/presentation/providers/missions_provider.dart';
 import 'package:baloga_ar_rescue/core/theme/app_theme.dart';
 
 class MissionsScreen extends ConsumerStatefulWidget {
@@ -25,75 +26,40 @@ class _MissionsScreenState extends ConsumerState<MissionsScreen> with SingleTick
     super.dispose();
   }
 
-  void _claimMission(int id, int xpReward, int pointsReward) {
-    ref.read(authProvider.notifier).addPointsAndXp(pointsReward, xpReward);
+  void _claimMission(MissionModel mission) {
+    final notifier = ref.read(missionsProvider.notifier);
+    final success = notifier.claimReward(mission.id);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.primaryGlow,
-        content: Text(
-          '🎉 REWARD DIKLAIM SINKRON! +$xpReward XP & +$pointsReward Poin berhasil ditambahkan!',
-          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+    if (success) {
+      ref.read(authProvider.notifier).addPointsAndXp(mission.pointsReward, mission.xpReward);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.primaryGlow,
+          content: Text(
+            'REWARD MISI DIKLAIM: +${mission.xpReward} XP & +${mission.pointsReward} Poin ditambahkan!',
+            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.danger,
+          content: Text(
+            'Reward misi ini sudah diklaim sebelumnya!',
+            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final missionsList = [
-      {
-        'id': 1,
-        'title': 'Penyelamat Pertama Rozitech',
-        'description': 'Selamatkan 1 spesies hewan atau objek di kawasan Rozitech',
-        'type': 'daily',
-        'target_count': 1,
-        'current_progress': 1,
-        'xp_reward': 100,
-        'points_reward': 250,
-        'is_completed': false,
-        'can_claim': true,
-      },
-      {
-        'id': 2,
-        'title': 'Pencinta Flora Baloga',
-        'description': 'Temukan 3 tumbuhan langka (Lidah Mertua, Bayam Duri, Saga Rambat)',
-        'type': 'daily',
-        'target_count': 3,
-        'current_progress': 2,
-        'xp_reward': 250,
-        'points_reward': 500,
-        'is_completed': false,
-        'can_claim': false,
-      },
-      {
-        'id': 3,
-        'title': 'Master Ekosistem Rozitech',
-        'description': 'Selamatkan 10 spesies berbeda di sekitar lokasi Rozitech',
-        'type': 'weekly',
-        'target_count': 10,
-        'current_progress': 6,
-        'xp_reward': 1000,
-        'points_reward': 2000,
-        'is_completed': false,
-        'can_claim': false,
-      },
-      {
-        'id': 4,
-        'title': 'Patroli Ranger Rutin',
-        'description': 'Lakukan pemindaian AR kamera 5 kali di area target',
-        'type': 'weekly',
-        'target_count': 5,
-        'current_progress': 5,
-        'xp_reward': 500,
-        'points_reward': 1000,
-        'is_completed': false,
-        'can_claim': true,
-      },
-    ];
-
-    final dailyMissions = missionsList.where((m) => m['type'] == 'daily').toList();
-    final weeklyMissions = missionsList.where((m) => m['type'] == 'weekly').toList();
+    final allMissions = ref.watch(missionsProvider);
+    final dailyMissions = allMissions.where((m) => m.type == 'daily').toList();
+    final weeklyMissions = allMissions.where((m) => m.type == 'weekly').toList();
 
     return Scaffold(
       backgroundColor: AppColors.bgDark,
@@ -127,7 +93,7 @@ class _MissionsScreenState extends ConsumerState<MissionsScreen> with SingleTick
                     unselectedLabelColor: AppColors.textMuted,
                     indicator: BoxDecoration(color: AppColors.primaryGlow.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
                     dividerColor: Colors.transparent,
-                    tabs: const [Tab(text: '📅 MISI HARIAN'), Tab(text: '📆 MISI MINGGUAN')],
+                    tabs: const [Tab(text: 'MISI HARIAN'), Tab(text: 'MISI MINGGUAN')],
                   ),
                 ),
               ],
@@ -150,36 +116,23 @@ class _MissionsScreenState extends ConsumerState<MissionsScreen> with SingleTick
   }
 }
 
-class _MissionListView extends StatefulWidget {
-  final List<Map<String, dynamic>> missions;
-  final void Function(int id, int xp, int points) onClaim;
+class _MissionListView extends StatelessWidget {
+  final List<MissionModel> missions;
+  final void Function(MissionModel mission) onClaim;
 
   const _MissionListView({required this.missions, required this.onClaim});
-
-  @override
-  State<_MissionListView> createState() => _MissionListViewState();
-}
-
-class _MissionListViewState extends State<_MissionListView> {
-  late List<Map<String, dynamic>> _list;
-
-  @override
-  void initState() {
-    super.initState();
-    _list = List.from(widget.missions);
-  }
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _list.length,
+      itemCount: missions.length,
       itemBuilder: (ctx, i) {
-        final mission = _list[i];
-        final progress = (mission['current_progress'] as int);
-        final target = (mission['target_count'] as int);
-        final isCompleted = mission['is_completed'] == true;
-        final canClaim = mission['can_claim'] == true;
+        final mission = missions[i];
+        final progress = mission.currentProgress;
+        final target = mission.targetCount;
+        final isCompleted = mission.isCompleted;
+        final canClaim = mission.canClaim && !isCompleted;
         final pct = (progress / target).clamp(0.0, 1.0);
 
         return Container(
@@ -221,12 +174,12 @@ class _MissionListViewState extends State<_MissionListView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          mission['title'] as String,
+                          mission.title,
                           style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          mission['description'] as String,
+                          mission.description,
                           style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, color: AppColors.textMuted),
                         ),
                       ],
@@ -238,8 +191,8 @@ class _MissionListViewState extends State<_MissionListView> {
                     decoration: BoxDecoration(color: AppColors.accentGold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
                     child: Column(
                       children: [
-                        Text('+${mission['xp_reward']} XP', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold)),
-                        Text('+${mission['points_reward']} Poin', style: const TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.accentGold)),
+                        Text('+${mission.xpReward} XP', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold)),
+                        Text('+${mission.pointsReward} Poin', style: const TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.accentGold)),
                       ],
                     ),
                   ),
@@ -269,22 +222,12 @@ class _MissionListViewState extends State<_MissionListView> {
                 ],
               ),
 
-              if (canClaim && !isCompleted) ...[
+              if (canClaim) ...[
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _list[i]['can_claim'] = false;
-                        _list[i]['is_completed'] = true;
-                      });
-                      widget.onClaim(
-                        mission['id'] as int,
-                        mission['xp_reward'] as int,
-                        mission['points_reward'] as int,
-                      );
-                    },
+                    onPressed: () => onClaim(mission),
                     icon: const Icon(Icons.card_giftcard_rounded, size: 18),
                     label: const Text(
                       'KLAIM REWARD SEKARANG!',
@@ -302,17 +245,25 @@ class _MissionListViewState extends State<_MissionListView> {
               ],
 
               if (isCompleted) ...[
-                const SizedBox(height: 10),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.check_circle_rounded, color: AppColors.primaryGlow, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'REWARD MISI SUDAH DIKLAIM',
-                      style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow),
-                    ),
-                  ],
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGlow.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: AppColors.primaryGlow, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'REWARD MISI SUDAH DIKLAIM (SELESAI)',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primaryGlow),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],

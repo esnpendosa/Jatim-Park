@@ -32,9 +32,9 @@ class InventoryState {
 class InventoryNotifier extends StateNotifier<InventoryState> {
   InventoryNotifier()
       : super(InventoryState(
-          ekoSpheres: 12,
-          berries: 25,
-          radars: 3,
+          ekoSpheres: 15,
+          berries: 30,
+          radars: 5,
           capturedSpecies: [
             SpeciesModel(
               id: 2,
@@ -85,9 +85,22 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     return false;
   }
 
+  void addItems({int spheres = 0, int berries = 0, int radars = 0}) {
+    state = state.copyWith(
+      ekoSpheres: state.ekoSpheres + spheres,
+      berries: state.berries + berries,
+      radars: state.radars + radars,
+    );
+  }
+
   void addCapturedSpecies(SpeciesModel species) {
+    // Add captured species and award +3 bonus Eko-Spheres & +5 bonus Berries for successful rescue!
     final updated = List<SpeciesModel>.from(state.capturedSpecies)..add(species);
-    state = state.copyWith(capturedSpecies: updated);
+    state = state.copyWith(
+      capturedSpecies: updated,
+      ekoSpheres: state.ekoSpheres + 3,
+      berries: state.berries + 5,
+    );
   }
 }
 
