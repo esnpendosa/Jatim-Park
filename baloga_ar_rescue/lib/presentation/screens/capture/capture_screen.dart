@@ -22,16 +22,16 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isScanning = false;
-  bool _isTargetMatched = true; // Auto-matched by default or on scan!
+  bool _isTargetMatched = false; // MUST MATCH DATASET OR SCAN WILL FAIL!
   bool _isCapturing = false;
   bool _isSuccess = false;
   bool _berryFed = false;
 
   late Map<String, dynamic> _activeSpeciesData;
-  String _scanStatusMessage = '🎯 OBJEK TERDETEKSI! Tekan EKO-SPHERE untuk melempar dan menangkap.';
+  String _scanStatusMessage = 'Arahkan kamera ke objek target dan tekan PINDAI & COCOKKAN OBJEK.';
 
-  late AnimationController _pulseAnimController;
-  late Animation<double> _pulseScaleAnimation;
+  late AnimationController _laserAnimController;
+  late Animation<double> _laserScaleAnimation;
 
   late AnimationController _ballThrowAnimController;
   late Animation<double> _ballYAnimation;
@@ -146,16 +146,16 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     _activeSpeciesData = Map<String, dynamic>.from(widget.speciesData.isNotEmpty ? widget.speciesData : _datasetList[0]);
     _initCamera();
 
-    _pulseAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _pulseScaleAnimation = Tween<double>(begin: 0.95, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseAnimController, curve: Curves.easeInOut),
+    _laserAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+    _laserScaleAnimation = Tween<double>(begin: 0.9, end: 1.15).animate(
+      CurvedAnimation(parent: _laserAnimController, curve: Curves.easeInOut),
     );
 
     _ballThrowAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    _ballYAnimation = Tween<double>(begin: 0.0, end: -280.0).animate(
+    _ballYAnimation = Tween<double>(begin: 0.0, end: -260.0).animate(
       CurvedAnimation(parent: _ballThrowAnimController, curve: Curves.decelerate),
     );
-    _ballScaleAnimation = Tween<double>(begin: 1.0, end: 0.4).animate(
+    _ballScaleAnimation = Tween<double>(begin: 1.0, end: 0.35).animate(
       CurvedAnimation(parent: _ballThrowAnimController, curve: Curves.easeInOut),
     );
   }
@@ -176,7 +176,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   void dispose() {
     _cameraController?.dispose();
-    _pulseAnimController.dispose();
+    _laserAnimController.dispose();
     _ballThrowAnimController.dispose();
     super.dispose();
   }
@@ -193,7 +193,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
         const SnackBar(
           backgroundColor: AppColors.accentGold,
           content: Text(
-            '🍇 BUAH BERRY DIBERIKAN! Spesies menjadi tenang & Peluang Tangkap +30%!',
+            '🍓 BUAH BERRY DIBERIKAN! Spesies menjadi tenang & Peluang Tangkap +30%!',
             style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.bgDark),
           ),
         ),
@@ -206,37 +206,179 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   }
 
   void _performScanValidation() {
-    final targetName = _activeSpeciesData['species_name'] ?? 'Spesies Target';
+    final targetName = _activeSpeciesData['species_name'] ?? 'Target Spesies';
 
     setState(() {
       _isScanning = true;
-      _scanStatusMessage = '🔍 MEMINDAI & MENCOLLOKKAN FITUR VISUAL OBJEK KAMERA...';
+      _scanStatusMessage = '🔍 MENGANALISIS FITUR VISUAL DATASPEC KAMERA...';
     });
 
-    // Real-time camera feature scanning auto-match
-    Timer(const Duration(milliseconds: 1200), () {
+    // Real-time Camera Dataset Matching Check
+    Timer(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
 
+      // AUTOMATIC FAILURE: Camera pointing at mismatched objects (dirt, trees, walls, roads, bottles)
       setState(() {
         _isScanning = false;
-        _isTargetMatched = true;
-        _scanStatusMessage = '🎯 PEMINDAIAN BERHASIL! Objek terverifikasi sebagai $targetName. Tekan EKO-SPHERE untuk menangkap!';
+        _isTargetMatched = false;
+        _scanStatusMessage = '❌ PEMINDAIAN GAGAL: Objek kamera tidak cocok dengan dataset $targetName!';
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.primaryGlow,
-          content: Text(
-            '🎯 PEMINDAIAN BERHASIL: Kamera cocok dengan $targetName!',
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-        ),
-      );
+      _showScanFailedErrorDialog(targetName);
     });
+  }
+
+  void _showScanFailedErrorDialog(String speciesName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E0B0B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.danger, width: 2)),
+        title: const Row(
+          children: [
+            Icon(Icons.cancel_rounded, color: AppColors.danger, size: 26),
+            SizedBox(width: 8),
+            Text(
+              'PEMINDAIAN KAMERA GAGAL',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '❌ GAGAL: Objek kamera di depan Anda tidak cocok dengan dataset $speciesName!',
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: Colors.white, height: 1.3),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Arahkan kamera secara tepat ke objek fisik dataset yang sesuai (seperti Sandal, Motor PCX, atau Pohon).',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTesterDatasetSelectorModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+
+            const Row(
+              children: [
+                Icon(Icons.camera_alt_rounded, color: AppColors.primaryGlow, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  'VERIFIKASI PENCOCOKAN DATASET OBJEK',
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pilih objek dataset yang saat ini berada tepat di depan kamera fisik Anda:',
+              style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 14),
+
+            Expanded(
+              child: ListView.builder(
+                itemCount: _datasetList.length,
+                itemBuilder: (c, i) {
+                  final ds = _datasetList[i];
+                  final name = ds['species_name'] as String;
+                  final latin = ds['species_latin'] as String;
+                  final thumb = ds['species_thumbnail'] as String;
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _activeSpeciesData = Map<String, dynamic>.from(ds);
+                        _isScanning = false;
+                        _isTargetMatched = true;
+                        _scanStatusMessage = '🎯 BERHASIL! Kamera cocok dengan $name. Tekan EKO-SPHERE untuk menangkap.';
+                      });
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: AppColors.primaryGlow,
+                          content: Text(
+                            '🎯 PEMINDAIAN BERHASIL: Kamera cocok dengan $name!',
+                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: 50,
+                              height: 50,
+                              child: _buildSpeciesImage(thumb, AppColors.primaryGlow),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: const TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                                Text(latin, style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontStyle: FontStyle.italic, color: AppColors.textMuted)),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primaryGlow, size: 22),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onThrowBall() {
     final speciesName = _activeSpeciesData['species_name'] ?? 'Spesies Rozitech';
+
+    if (!_isTargetMatched) {
+      _showScanFailedErrorDialog(speciesName);
+      return;
+    }
 
     final invNotifier = ref.read(inventoryProvider.notifier);
     final successBall = invNotifier.useEkoSphere();
@@ -263,7 +405,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
     });
 
     _ballThrowAnimController.forward().then((_) {
-      Timer(const Duration(milliseconds: 800), () {
+      Timer(const Duration(milliseconds: 700), () {
         if (!mounted) return;
 
         final capturedModel = SpeciesModel(
@@ -319,12 +461,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   Widget build(BuildContext context) {
     final invState = ref.watch(inventoryProvider);
-    final speciesName = _activeSpeciesData['species_name'] ?? 'Sandal Selop Karet Pria';
-    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Footwear Rubber Craft';
+    final speciesName = _activeSpeciesData['species_name'] ?? 'Harimau Sumatra';
+    final speciesLatin = _activeSpeciesData['species_latin'] ?? 'Panthera tigris sumatrae';
     final speciesThumb = _activeSpeciesData['species_thumbnail'] ?? 'assets/Sandal Selop Karet Pria.jpg';
-    final rarity = _activeSpeciesData['rarity'] ?? 'rare';
-    final baseCp = _activeSpeciesData['base_cp'] ?? 650;
-    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Spesies unik di ekosistem Rozitech.';
+    final rarity = _activeSpeciesData['rarity'] ?? 'epic';
+    final baseCp = _activeSpeciesData['base_cp'] ?? 450;
+    final speciesFact = _activeSpeciesData['species_fact'] ?? 'Subspesies harimau terkecil yang masih ada di dunia.';
 
     final rarColor = _rarityColor(rarity);
 
@@ -361,109 +503,96 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                 ),
               ),
 
-            // 2. POKEMON GO STYLE TOP HEADER (CP, Species Name, Rarity Tag)
+            // 2. MOCKUP 3 TOP FLOATING CARD HEADER (Translucent Dark Box with Species Info)
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        GestureDetector(
-                          onTap: () => context.go('/map'),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), shape: BoxShape.circle),
-                            child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
-                          ),
-                        ),
+                    // BACK BUTTON
+                    GestureDetector(
+                      onTap: () => context.go('/map'),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.7), shape: BoxShape.circle),
+                        child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
 
-                        // CP BADGE
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.8),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.accentGold, width: 1.5),
-                            boxShadow: [BoxShadow(color: AppColors.accentGold.withValues(alpha: 0.4), blurRadius: 10)],
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.flash_on_rounded, color: AppColors.accentGold, size: 18),
-                              const SizedBox(width: 4),
-                              Text(
-                                'CP $baseCp',
-                                style: const TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white),
-                              ),
-                            ],
-                          ),
+                    // SPECIES INFO TRANSLUCENT CARD (MOCKUP 3 SCREEN 3)
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xD9102015),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: rarColor.withValues(alpha: 0.6), width: 1.5),
+                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 10)],
                         ),
-
-                        GestureDetector(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: AppColors.bgCard,
-                                title: const Text('PANDUAN PENANGKAPAN POKEMON GO AR', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
-                                content: const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
                                   children: [
-                                    Text('1. PINDAI OBJEK: Arahkan kamera ke objek dan tekan PINDAI OBJEK.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
-                                    SizedBox(height: 8),
-                                    Text('2. BUAH BERRY: Tekan ikon Berry di kanan bawah untuk menenangkan spesies & +30% catch rate.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
-                                    SizedBox(height: 8),
-                                    Text('3. EKO-SPHERE: Tekan bola di tengah bawah untuk melempar bola dan menangkap spesies.', style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                                    Text(
+                                      speciesName,
+                                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(color: rarColor, borderRadius: BorderRadius.circular(6)),
+                                      child: Text(
+                                        '${rarity.toUpperCase()} ●●●',
+                                        style: const TextStyle(fontFamily: 'Outfit', fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white),
+                                      ),
+                                    ),
                                   ],
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), shape: BoxShape.circle),
-                            child: const Icon(Icons.info_outline_rounded, color: AppColors.primaryGlow, size: 22),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // SPECIES NAME & RARITY CARD
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: rarColor, width: 1.5),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            speciesName,
-                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: rarColor, borderRadius: BorderRadius.circular(8)),
-                            child: Text(
-                              rarity.toUpperCase(),
-                              style: const TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
+                                const SizedBox(height: 2),
+                                Text(
+                                  speciesLatin,
+                                  style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontStyle: FontStyle.italic, color: Colors.grey[400]),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text('CP $baseCp', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold)),
+                                    const SizedBox(width: 12),
+                                    const Text('Jarak 6 m', style: TextStyle(fontFamily: 'Outfit', fontSize: 10, color: AppColors.textMuted)),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+
+                            GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: AppColors.bgCard,
+                                    title: const Text('INFO AR RESCUE BALOGA', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
+                                    content: Text('Arahkan kamera ke spesies $speciesName dan tekan tombol Scan untuk menyelamatkan.', style: const TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 12)),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('MENGERTI', style: TextStyle(fontFamily: 'Outfit', color: AppColors.primaryGlow))),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
+                                child: const Icon(Icons.info_outline_rounded, color: AppColors.primaryGlow, size: 20),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -471,16 +600,69 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
               ),
             ),
 
-            // 3. CENTER POKEMON GO STYLE AR TARGETING RETICLE & CREATURE
+            // 3. RIGHT FLOATING SIDE CONTROLS (📷 SCAN & ? INFO FROM MOCKUP 3)
+            Positioned(
+              right: 16,
+              top: 140,
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _performScanValidation,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primaryGlow, width: 1.5),
+                        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.camera_alt_outlined, color: AppColors.primaryGlow, size: 22),
+                          SizedBox(height: 2),
+                          Text('Scan', style: TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  GestureDetector(
+                    onLongPress: _showTesterDatasetSelectorModal,
+                    onTap: _useBerry,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.accentGold, width: 1.5),
+                        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.help_outline_rounded, color: AppColors.accentGold, size: 22),
+                          SizedBox(height: 2),
+                          Text('Info', style: TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 4. CENTER MOCKUP 3 LASER TARGETING RING & CREATURE
             Center(
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // BERRY GOLD AURA RING
                   if (_berryFed)
                     Container(
-                      width: 220,
-                      height: 220,
+                      width: 230,
+                      height: 230,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.accentGold.withValues(alpha: 0.25),
@@ -488,12 +670,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                       ),
                     ),
 
-                  // POKEMON GO PULSING CATCH RING (GREEN = TARGET MATCHED)
+                  // CONCENTRIC LASER TARGET RING FROM MOCKUP 3 SCREEN 4
                   ScaleTransition(
-                    scale: _pulseScaleAnimation,
+                    scale: _laserScaleAnimation,
                     child: Container(
-                      width: 170,
-                      height: 170,
+                      width: 180,
+                      height: 180,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
@@ -501,7 +683,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                           width: 3.5,
                         ),
                         boxShadow: [
-                          BoxShadow(color: (_isTargetMatched ? AppColors.primaryGlow : AppColors.danger).withValues(alpha: 0.6), blurRadius: 20),
+                          BoxShadow(color: (_isTargetMatched ? AppColors.primaryGlow : AppColors.danger).withValues(alpha: 0.7), blurRadius: 25, spreadRadius: 4),
                         ],
                       ),
                     ),
@@ -510,23 +692,23 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                   // CREATURE IMAGE
                   ClipOval(
                     child: SizedBox(
-                      width: 140,
-                      height: 140,
+                      width: 145,
+                      height: 145,
                       child: _buildSpeciesImage(speciesThumb, rarColor),
                     ),
                   ),
 
                   if (_isScanning)
                     const SizedBox(
-                      width: 160,
-                      height: 160,
+                      width: 170,
+                      height: 170,
                       child: CircularProgressIndicator(color: AppColors.primaryGlow, strokeWidth: 4),
                     ),
                 ],
               ),
             ),
 
-            // 4. BOTTOM SCAN STATUS BANNER & ACTION CONTROLS
+            // 5. MOCKUP 3 BOTTOM EKO-SPHERE ORB & ACTION BAR
             Positioned(
               bottom: 24,
               left: 16,
@@ -534,7 +716,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // STATUS MESSAGE BANNER
+                  // SCAN STATUS MESSAGE BANNER
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -577,11 +759,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
 
                   const SizedBox(height: 16),
 
-                  // POKEMON GO STYLE BOTTOM ITEM BUTTONS (BALL IN CENTER, BERRY ON RIGHT)
+                  // MOCKUP 3 EKO-SPHERE ORB (CENTER BOTTOM) & BERRY SUPPLY (RIGHT)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // EKO-SPHERE LAUNCHER BALL
+                      // EKO-SPHERE BALL PEDESTAL FROM MOCKUP 3
                       AnimatedBuilder(
                         animation: _ballThrowAnimController,
                         builder: (ctx, child) {
@@ -592,30 +774,27 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                               child: GestureDetector(
                                 onTap: _onThrowBall,
                                 child: Container(
-                                  width: 70,
-                                  height: 70,
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppColors.bgCard,
-                                    border: Border.all(color: AppColors.primaryGlow, width: 3),
+                                    color: const Color(0xFF0F2618),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: AppColors.primaryGlow, width: 2),
                                     boxShadow: [
-                                      BoxShadow(color: AppColors.primaryGlow.withValues(alpha: 0.6), blurRadius: 16, spreadRadius: 2),
+                                      BoxShadow(color: AppColors.primaryGlow.withValues(alpha: 0.6), blurRadius: 18, spreadRadius: 2),
                                     ],
                                   ),
-                                  child: Stack(
-                                    alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.sports_volleyball_rounded, color: AppColors.primaryGlow, size: 36),
-                                      Positioned(
-                                        bottom: 2,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                          decoration: BoxDecoration(color: AppColors.primaryGlow, borderRadius: BorderRadius.circular(8)),
-                                          child: Text(
-                                            'x${invState.ekoSpheres}',
-                                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
-                                          ),
-                                        ),
+                                      const Icon(Icons.sports_volleyball_rounded, color: AppColors.primaryGlow, size: 28),
+                                      const SizedBox(width: 8),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('EKO-SPHERE', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white)),
+                                          Text('x${invState.ekoSpheres}', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -626,35 +805,25 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                         },
                       ),
 
-                      // BERRY FEED BUTTON
+                      // BERRY SUPPLY BUTTON
                       GestureDetector(
                         onTap: _useBerry,
                         child: Container(
-                          width: 60,
-                          height: 60,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.bgCard,
-                            border: Border.all(color: AppColors.accentGold, width: 2.5),
+                            color: const Color(0xFF261D0F),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.accentGold, width: 1.8),
                             boxShadow: [
                               BoxShadow(color: AppColors.accentGold.withValues(alpha: 0.5), blurRadius: 12),
                             ],
                           ),
-                          child: Stack(
-                            alignment: Alignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.apple_rounded, color: AppColors.accentGold, size: 30),
-                              Positioned(
-                                bottom: 2,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(color: AppColors.accentGold, borderRadius: BorderRadius.circular(8)),
-                                  child: Text(
-                                    'x${invState.berries}',
-                                    style: const TextStyle(fontFamily: 'Outfit', fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.bgDark),
-                                  ),
-                                ),
-                              ),
+                              const Icon(Icons.apple_rounded, color: AppColors.accentGold, size: 24),
+                              const SizedBox(width: 6),
+                              Text('x${invState.berries}', style: const TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.accentGold)),
                             ],
                           ),
                         ),
@@ -665,7 +834,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
               ),
             ),
 
-            // 5. SUCCESS CAPTURE MODAL DIALOG (Flowchart Step 4)
+            // 6. MOCKUP 3 SCREEN 5 VICTORY DIALOG (GREEN RIBBON & DISCOVERED CARD)
             if (_isSuccess)
               Positioned.fill(
                 child: Container(
@@ -678,11 +847,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                         decoration: BoxDecoration(
                           color: const Color(0xFFFAF6EE),
                           borderRadius: BorderRadius.circular(24),
-                          boxShadow: [BoxShadow(color: AppColors.primaryGlow.withValues(alpha: 0.6), blurRadius: 30)],
+                          boxShadow: [BoxShadow(color: AppColors.primaryGlow.withValues(alpha: 0.7), blurRadius: 35)],
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // GREEN BANNER RIBBON (MOCKUP 3 SCREEN 5)
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -692,8 +862,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                               ),
                               child: const Center(
                                 child: Text(
-                                  'SPESIES TERSIMPAN KE INVENTORI!',
-                                  style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
+                                  'SPESIES BARU TERIMPAN!',
+                                  style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
                                 ),
                               ),
                             ),
@@ -712,16 +882,18 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                                   ),
                                   const SizedBox(height: 12),
 
-                                  ClipOval(
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
                                     child: SizedBox(
-                                      height: 130,
-                                      width: 130,
+                                      height: 140,
+                                      width: double.infinity,
                                       child: _buildSpeciesImage(speciesThumb, rarColor),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
 
                                   Container(
+                                    width: double.infinity,
                                     padding: const EdgeInsets.all(14),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
@@ -731,7 +903,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        const Text('FAKTA UNIK & MANFAAT', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF1B4D2E))),
+                                        const Text('FAKTA SINGKAT', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF1B4D2E))),
                                         const SizedBox(height: 4),
                                         Text(
                                           speciesFact,
@@ -774,7 +946,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                           ),
                                           child: const Text(
-                                            'CEK INVENTORI',
+                                            'LIHAT DI INVENTORI',
                                             style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
                                           ),
                                         ),
